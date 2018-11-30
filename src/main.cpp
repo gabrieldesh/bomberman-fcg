@@ -50,6 +50,8 @@
 #include "utils.h"
 #include "matrices.h"
 
+#define ORIGIN glm::vec4(0.0f,0.0f,0.0f,1.0f)
+
 #define PLANE 0
 #define COW 1
 
@@ -140,6 +142,8 @@ struct SceneObject
     glm::vec3    bbox_max;
 };
 
+// Armazena a matriz de transformação e outros dados necessários para desenhar
+// uma instância de modelo.
 struct ObjectInstance
 {
     int id;
@@ -305,20 +309,28 @@ int main(int argc, char* argv[])
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
 
-    // Variáveis auxiliares utilizadas para chamada à função
-    // TextRendering_ShowModelViewProjection(), armazenando matrizes 4x4.
-    glm::mat4 the_projection;
-    glm::mat4 the_model;
-    glm::mat4 the_view;
-
+    // Guarda instâncias de modelos
     std::list<ObjectInstance*> objectInstances;
-    
-    ObjectInstance *plane = new ObjectInstance;
-    plane->id = PLANE;
-    plane->name = "plane";
-    plane->model = Matrix_Translate(0.0f,0.0f,0.0f);
-    objectInstances.push_back(plane);
 
+    float farplane_distance = 10.0f;
+    
+    // Adiciona as primeiras instâncias de chão. As instâncias vão sendo 
+    // apagadas à medida que se afastam da cena.
+    ObjectInstance *plane;
+    for (int i = 0; i < farplane_distance; i++) {
+        plane = new ObjectInstance;
+        plane->id = PLANE;
+        plane->name = "plane";
+        plane->model = Matrix_Translate(
+            -farplane_distance + 2*i + 1,
+            0.0f,
+            0.0f);
+
+        objectInstances.push_back(plane);
+    }
+    ObjectInstance *last_drawn_plane = plane;
+
+    // Adiciona a única instância da vaca
     ObjectInstance *cow = new ObjectInstance;
     cow->id = COW;
     cow->name = "cow";
@@ -381,7 +393,7 @@ int main(int argc, char* argv[])
         // Note que, no sistema de coordenadas da câmera, os planos near e far
         // estão no sentido negativo! Veja slides 190-193 do documento "Aula_09_Projecoes.pdf".
         float nearplane = -0.1f;  // Posição do "near plane"
-        float farplane  = -10.0f; // Posição do "far plane"
+        float farplane  = -farplane_distance; // Posição do "far plane"
 
         if (g_UsePerspectiveProjection)
         {
@@ -410,14 +422,32 @@ int main(int argc, char* argv[])
         glUniformMatrix4fv(view_uniform       , 1 , GL_FALSE , glm::value_ptr(view));
         glUniformMatrix4fv(projection_uniform , 1 , GL_FALSE , glm::value_ptr(projection));
 
+        // Se necessário, cria uma nova instância de chão para entrar na cena
+        glm::vec4 last_drawn_position = last_drawn_plane->model * ORIGIN;
+        float distance_from_cow = norm(last_drawn_position - cow_position);
+        if (distance_from_cow <= farplane_distance - 1.0f) {
+            ObjectInstance *plane = new ObjectInstance;
+            plane->id = PLANE;
+            plane->name = "plane";
+            plane->model = Matrix_Translate(
+                last_drawn_position.x + 2.0f,
+                0.0f,
+                0.0f);
+
+            objectInstances.push_back(plane);
+
+            last_drawn_plane = plane;
+        }
+
+        // Loop de desenho
         std::list<ObjectInstance*>::iterator it = objectInstances.begin();
         while (it != objectInstances.end()) {
 
             // Destroi o objeto se ele se afastou da cena
-            glm::vec4 position = (**it).model * glm::vec4(0.0f,0.0f,0.0f,1.0f);
+            glm::vec4 position = (**it).model * ORIGIN;
             float distance_from_cow = norm(position - cow_position);
 
-            if (distance_from_cow > -farplane) {
+            if (distance_from_cow > farplane_distance + 1.5f) {
                 delete *it;
                 objectInstances.erase(it++);
 
