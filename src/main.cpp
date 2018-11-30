@@ -50,12 +50,12 @@
 #include "utils.h"
 #include "matrices.h"
 
+#define PI 3.141592
+#define GRAVITY_ACCELERATION 9.8
 #define ORIGIN glm::vec4(0.0f,0.0f,0.0f,1.0f)
 
 #define PLANE 0
 #define COW 1
-
-#define COW_VELOCITY ((double) 1.0)
 
 // Estrutura que representa um modelo geométrico carregado a partir de um
 // arquivo ".obj". Veja https://en.wikipedia.org/wiki/Wavefront_.obj_file .
@@ -175,12 +175,15 @@ float g_AngleZ = 0.0f;
 bool g_LeftMouseButtonPressed = false;
 bool g_RightMouseButtonPressed = false; // Análogo para botão direito do mouse
 bool g_MiddleMouseButtonPressed = false; // Análogo para botão do meio do mouse
+bool g_LeftPressed = false;
+bool g_RightPressed = false;
+
 
 // Variáveis que definem a câmera em coordenadas esféricas, controladas pelo
 // usuário através do mouse (veja função CursorPosCallback()). A posição
 // efetiva da câmera é calculada dentro da função main(), dentro do loop de
 // renderização.
-float g_CameraTheta = 1.5f; // Ângulo no plano ZX em relação ao eixo Z
+float g_CameraTheta = -PI / 2.0; // Ângulo no plano ZX em relação ao eixo Z
 float g_CameraPhi = 0.5f;   // Ângulo em relação ao eixo Y
 float g_CameraDistance = 3.5f; // Distância da câmera para a origem
 
@@ -336,11 +339,26 @@ int main(int argc, char* argv[])
     cow->name = "cow";
     objectInstances.push_back(cow);
 
+    glm::vec4 cow_position  = glm::vec4(
+            0.0f,
+            0.7f,
+            0.0f,
+            1.0f);
+
+    glm::vec4 cow_velocity = glm::vec4(
+            3.0f,
+            0.0f,
+            0.0f,
+            0.0f);
+
+    float time = glfwGetTime();
     // Ficamos em loop, renderizando, até que o usuário feche a janela
     while (!glfwWindowShouldClose(window))
     {
         // Aqui executamos as operações de renderização
-        double time = glfwGetTime();
+        float new_time = glfwGetTime();
+        float delta_time = new_time - time;
+        time = new_time;
 
         // Definimos a cor do "fundo" do framebuffer como branco.  Tal cor é
         // definida como coeficientes RGBA: Red, Green, Blue, Alpha; isto é:
@@ -357,12 +375,20 @@ int main(int argc, char* argv[])
         // Pedimos para a GPU utilizar o programa de GPU criado acima (contendo
         // os shaders de vértice e fragmentos).
         glUseProgram(program_id);
+
+        cow_velocity.y -= GRAVITY_ACCELERATION * delta_time;
+
+        if (g_LeftPressed == g_RightPressed) {
+            cow_velocity.z = 0.0f;
+        }
+        else if (g_LeftPressed) {
+            cow_velocity.z = -2.0f;
+        }
+        else {
+            cow_velocity.z = 2.0f;
+        }
         
-        glm::vec4 cow_position  = glm::vec4(
-            COW_VELOCITY * time,
-            0.6f,
-            0.0f,
-            1.0f);
+        cow_position = cow_position + cow_velocity * delta_time;
         
         cow->model = Matrix_Translate(cow_position.x, cow_position.y, cow_position.z);
         
@@ -399,7 +425,7 @@ int main(int argc, char* argv[])
         {
             // Projeção Perspectiva.
             // Para definição do field of view (FOV), veja slide 227 do documento "Aula_09_Projecoes.pdf".
-            float field_of_view = 3.141592 / 3.0f;
+            float field_of_view = PI / 3.0f;
             projection = Matrix_Perspective(field_of_view, g_ScreenRatio, nearplane, farplane);
         }
         else
@@ -1204,6 +1230,24 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
     //   Se apertar tecla shift+Z então g_AngleZ -= delta;
 
     float delta = 3.141592 / 16; // 22.5 graus, em radianos.
+
+    if (key == GLFW_KEY_A && action == GLFW_PRESS)
+    {
+        g_LeftPressed = true;
+    }
+    if (key == GLFW_KEY_A && action == GLFW_RELEASE)
+    {
+        g_LeftPressed = false;
+    }
+
+    if (key == GLFW_KEY_D && action == GLFW_PRESS)
+    {
+        g_RightPressed = true;
+    }
+    if (key == GLFW_KEY_D && action == GLFW_RELEASE)
+    {
+        g_RightPressed = false;
+    }
 
     if (key == GLFW_KEY_X && action == GLFW_PRESS)
     {
