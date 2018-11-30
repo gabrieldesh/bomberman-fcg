@@ -20,6 +20,7 @@
 #include <cstdlib>
 
 // Headers abaixo são específicos de C++
+#include <iostream>
 #include <map>
 #include <stack>
 #include <list>
@@ -51,6 +52,8 @@
 
 #define PLANE 0
 #define COW 1
+
+#define COW_VELOCITY ((double) 1.0)
 
 // Estrutura que representa um modelo geométrico carregado a partir de um
 // arquivo ".obj". Veja https://en.wikipedia.org/wiki/Wavefront_.obj_file .
@@ -308,13 +311,18 @@ int main(int argc, char* argv[])
     glm::mat4 the_model;
     glm::mat4 the_view;
 
-    std::list<ObjectInstance> objectInstances;
+    std::list<ObjectInstance*> objectInstances;
     
-    ObjectInstance plane;
-    plane.id = PLANE;
-    plane.name = "plane";
-    plane.model = Matrix_Translate(0.0f,0.0f,0.0f);
+    ObjectInstance *plane = new ObjectInstance;
+    plane->id = PLANE;
+    plane->name = "plane";
+    plane->model = Matrix_Translate(0.0f,0.0f,0.0f);
     objectInstances.push_back(plane);
+
+    ObjectInstance *cow = new ObjectInstance;
+    cow->id = COW;
+    cow->name = "cow";
+    objectInstances.push_back(cow);
 
     // Ficamos em loop, renderizando, até que o usuário feche a janela
     while (!glfwWindowShouldClose(window))
@@ -338,12 +346,13 @@ int main(int argc, char* argv[])
         // os shaders de vértice e fragmentos).
         glUseProgram(program_id);
         
-        double cow_velocity = 1.0;
         glm::vec4 cow_position  = glm::vec4(
-            cow_velocity * time,
+            COW_VELOCITY * time,
             0.6f,
             0.0f,
             1.0f);
+        
+        cow->model = Matrix_Translate(cow_position.x, cow_position.y, cow_position.z);
         
         glm::vec4 camera_lookat_l    = cow_position; // Ponto "l", para onde a câmera (look-at) estará sempre olhando
 
@@ -395,34 +404,28 @@ int main(int argc, char* argv[])
             projection = Matrix_Orthographic(l, r, b, t, nearplane, farplane);
         }
 
-        glm::mat4 model = Matrix_Identity(); // Transformação identidade de modelagem
-
         // Enviamos as matrizes "view" e "projection" para a placa de vídeo
         // (GPU). Veja o arquivo "shader_vertex.glsl", onde estas são
         // efetivamente aplicadas em todos os pontos.
         glUniformMatrix4fv(view_uniform       , 1 , GL_FALSE , glm::value_ptr(view));
         glUniformMatrix4fv(projection_uniform , 1 , GL_FALSE , glm::value_ptr(projection));
 
-        // Desenhamos o modelo da esfera
-        // model = Matrix_Translate(-1.0f,0.0f,0.0f)
-        //       * Matrix_Rotate_Z(0.6f)
-        //       * Matrix_Rotate_X(0.2f)
-        //       * Matrix_Rotate_Y(g_AngleY + (float)glfwGetTime() * 0.1f);
-        // glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        // glUniform1i(object_id_uniform, SPHERE);
-        // DrawVirtualObject("sphere");
+        for (std::list<ObjectInstance*>::iterator it = objectInstances.begin();
+            it != objectInstances.end(); it++) {
 
-        // Desenhamos o modelo da vaca
-        model = Matrix_Translate(cow_position.x, cow_position.y, cow_position.z);
-        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(object_id_uniform, COW);
-        DrawVirtualObject("cow");
+            glm::vec4 position = (**it).model * glm::vec4(0.0f,0.0f,0.0f,1.0f);
+            float distance_from_cow = norm(position - cow_position);
 
-        for (std::list<ObjectInstance>::iterator it = objectInstances.begin();
-             it != objectInstances.end(); it++) {
-            glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(it->model));
-            glUniform1i(object_id_uniform, it->id);
-            DrawVirtualObject(it->name);
+            if (distance_from_cow > -farplane) {
+                delete *it;
+                it = objectInstances.erase(it);
+
+                continue;
+            }
+
+            glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr((**it).model));
+            glUniform1i(object_id_uniform, (**it).id);
+            DrawVirtualObject((**it).name);
         }
 
         // Pegamos um vértice com coordenadas de modelo (0.5, 0.5, 0.5, 1) e o
