@@ -410,22 +410,26 @@ int main(int argc, char* argv[])
         glUniformMatrix4fv(view_uniform       , 1 , GL_FALSE , glm::value_ptr(view));
         glUniformMatrix4fv(projection_uniform , 1 , GL_FALSE , glm::value_ptr(projection));
 
-        for (std::list<ObjectInstance*>::iterator it = objectInstances.begin();
-            it != objectInstances.end(); it++) {
+        std::list<ObjectInstance*>::iterator it = objectInstances.begin();
+        while (it != objectInstances.end()) {
 
+            // Destroi o objeto se ele se afastou da cena
             glm::vec4 position = (**it).model * glm::vec4(0.0f,0.0f,0.0f,1.0f);
             float distance_from_cow = norm(position - cow_position);
 
             if (distance_from_cow > -farplane) {
                 delete *it;
-                it = objectInstances.erase(it);
+                objectInstances.erase(it++);
 
                 continue;
             }
 
+            // Desenha o objeto
             glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr((**it).model));
             glUniform1i(object_id_uniform, (**it).id);
             DrawVirtualObject((**it).name);
+
+            it++;
         }
 
         // Pegamos um vértice com coordenadas de modelo (0.5, 0.5, 0.5, 1) e o
