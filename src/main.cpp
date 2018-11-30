@@ -22,6 +22,7 @@
 // Headers abaixo são específicos de C++
 #include <map>
 #include <stack>
+#include <list>
 #include <string>
 #include <vector>
 #include <limits>
@@ -47,6 +48,9 @@
 // Headers locais, definidos na pasta "include/"
 #include "utils.h"
 #include "matrices.h"
+
+#define PLANE 0
+#define COW 1
 
 // Estrutura que representa um modelo geométrico carregado a partir de um
 // arquivo ".obj". Veja https://en.wikipedia.org/wiki/Wavefront_.obj_file .
@@ -86,7 +90,7 @@ void BuildTrianglesAndAddToVirtualScene(ObjModel*); // Constrói representação
 void ComputeNormals(ObjModel* model); // Computa normais de um ObjModel, caso não existam.
 void LoadShadersFromFiles(); // Carrega os shaders de vértice e fragmento, criando um programa de GPU
 void LoadTextureImage(const char* filename); // Função que carrega imagens de textura
-void DrawVirtualObject(const char* object_name); // Desenha um objeto armazenado em g_VirtualScene
+void DrawVirtualObject(std::string object_name); // Desenha um objeto armazenado em g_VirtualScene
 GLuint LoadShader_Vertex(const char* filename);   // Carrega um vertex shader
 GLuint LoadShader_Fragment(const char* filename); // Carrega um fragment shader
 void LoadShader(const char* filename, GLuint shader_id); // Função utilizada pelas duas acima
@@ -133,6 +137,13 @@ struct SceneObject
     glm::vec3    bbox_max;
 };
 
+struct ObjectInstance
+{
+    int id;
+    std::string name; // Nome do objeto na g_VirtualScene
+    glm::mat4 model; // Matriz de transformação para esta instância do modelo
+};
+
 // Abaixo definimos variáveis globais utilizadas em várias funções do código.
 
 // A cena virtual é uma lista de objetos nomeados, guardados em um dicionário
@@ -162,8 +173,8 @@ bool g_MiddleMouseButtonPressed = false; // Análogo para botão do meio do mous
 // usuário através do mouse (veja função CursorPosCallback()). A posição
 // efetiva da câmera é calculada dentro da função main(), dentro do loop de
 // renderização.
-float g_CameraTheta = 0.0f; // Ângulo no plano ZX em relação ao eixo Z
-float g_CameraPhi = 0.0f;   // Ângulo em relação ao eixo Y
+float g_CameraTheta = 1.5f; // Ângulo no plano ZX em relação ao eixo Z
+float g_CameraPhi = 0.5f;   // Ângulo em relação ao eixo Y
 float g_CameraDistance = 3.5f; // Distância da câmera para a origem
 
 // Variáveis que controlam rotação do antebraço
@@ -297,6 +308,14 @@ int main(int argc, char* argv[])
     glm::mat4 the_model;
     glm::mat4 the_view;
 
+    std::list<ObjectInstance> objectInstances;
+    
+    ObjectInstance plane;
+    plane.id = PLANE;
+    plane.name = "plane";
+    plane.model = Matrix_Translate(0.0f,0.0f,0.0f);
+    objectInstances.push_back(plane);
+
     // Ficamos em loop, renderizando, até que o usuário feche a janela
     while (!glfwWindowShouldClose(window))
     {
@@ -319,7 +338,7 @@ int main(int argc, char* argv[])
         // os shaders de vértice e fragmentos).
         glUseProgram(program_id);
         
-        double cow_velocity = 3.0;
+        double cow_velocity = 1.0;
         glm::vec4 cow_position  = glm::vec4(
             cow_velocity * time,
             0.6f,
@@ -384,9 +403,6 @@ int main(int argc, char* argv[])
         glUniformMatrix4fv(view_uniform       , 1 , GL_FALSE , glm::value_ptr(view));
         glUniformMatrix4fv(projection_uniform , 1 , GL_FALSE , glm::value_ptr(projection));
 
-        #define PLANE 0
-        #define COW 1
-
         // Desenhamos o modelo da esfera
         // model = Matrix_Translate(-1.0f,0.0f,0.0f)
         //       * Matrix_Rotate_Z(0.6f)
@@ -402,11 +418,12 @@ int main(int argc, char* argv[])
         glUniform1i(object_id_uniform, COW);
         DrawVirtualObject("cow");
 
-        // Desenhamos o plano do chão
-        model = Matrix_Translate(0.0f,0.0f,0.0f);
-        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(object_id_uniform, PLANE);
-        DrawVirtualObject("plane");
+        for (std::list<ObjectInstance>::iterator it = objectInstances.begin();
+             it != objectInstances.end(); it++) {
+            glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(it->model));
+            glUniform1i(object_id_uniform, it->id);
+            DrawVirtualObject(it->name);
+        }
 
         // Pegamos um vértice com coordenadas de modelo (0.5, 0.5, 0.5, 1) e o
         // passamos por todos os sistemas de coordenadas armazenados nas
@@ -502,7 +519,7 @@ void LoadTextureImage(const char* filename)
 
 // Função que desenha um objeto armazenado em g_VirtualScene. Veja definição
 // dos objetos na função BuildTrianglesAndAddToVirtualScene().
-void DrawVirtualObject(const char* object_name)
+void DrawVirtualObject(std::string object_name)
 {
     // "Ligamos" o VAO. Informamos que queremos utilizar os atributos de
     // vértices apontados pelo VAO criado pela função BuildTrianglesAndAddToVirtualScene(). Veja
