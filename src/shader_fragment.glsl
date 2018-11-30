@@ -19,9 +19,8 @@ uniform mat4 view;
 uniform mat4 projection;
 
 // Identificador que define qual objeto está sendo desenhado no momento
-#define SPHERE 0
-#define BUNNY  1
-#define PLANE  2
+#define PLANE 0
+#define COW 1
 uniform int object_id;
 
 // Parâmetros da axis-aligned bounding box (AABB) do modelo
@@ -68,7 +67,7 @@ void main()
     float U = 0.0;
     float V = 0.0;
 
-    if ( object_id == SPHERE )
+    if ( object_id == 5 )
     {
         vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
 
@@ -80,7 +79,7 @@ void main()
         U = (theta + M_PI) / (2 * M_PI);
         V = (phi + M_PI_2) / M_PI;
     }
-    else if ( object_id == BUNNY )
+    else if ( object_id == COW )
     {
         float minx = bbox_min.x;
         float maxx = bbox_max.x;
