@@ -51,9 +51,11 @@
 #include "matrices.h"
 
 #define PI 3.141592
-#define GRAVITY_ACCELERATION 9.8
 #define ORIGIN glm::vec4(0.0f,0.0f,0.0f,1.0f)
+
+#define GRAVITY_ACCELERATION 9.8
 #define JUMP_INITIAL_VELOCITY 4.0f
+#define TRACK_WIDTH 4.0f
 
 #define PLANE 0
 #define COW 1
@@ -90,7 +92,8 @@ struct ObjModel
 void PushMatrix(glm::mat4 M);
 void PopMatrix(glm::mat4& M);
 
-bool BBoxIntersectsBBox(glm::vec4 bbox_min_a, glm::vec4 bbox_max_a, glm::vec4 bbox_min_b, glm::vec4 bbox_max_b);
+bool BoxIntersectsBox(glm::vec4 bbox_min_a, glm::vec4 bbox_max_a, glm::vec4 bbox_min_b, glm::vec4 bbox_max_b);
+bool PlaneIntersectsBox(glm::vec4 plane_point, glm::vec4 plane_normal, glm::vec4 bbox_min, glm::vec4 bbox_max);
 
 // Declaração de várias funções utilizadas em main().  Essas estão definidas
 // logo após a definição de main() neste arquivo.
@@ -328,10 +331,15 @@ int main(int argc, char* argv[])
         plane = new ObjectInstance;
         plane->id = PLANE;
         plane->name = "plane";
-        plane->model = Matrix_Translate(
-            -farplane_distance + 2*i + 1,
-            0.0f,
-            0.0f);
+        plane->model = 
+            Matrix_Translate(
+                -farplane_distance + 2*i + 1,
+                0.0f,
+                0.0f)
+            * Matrix_Scale(
+                1.0f,
+                1.0f,
+                TRACK_WIDTH/2.0f);
 
         objectInstances.push_back(plane);
     }
@@ -387,10 +395,15 @@ int main(int argc, char* argv[])
             ObjectInstance *plane = new ObjectInstance;
             plane->id = PLANE;
             plane->name = "plane";
-            plane->model = Matrix_Translate(
-                last_drawn_position.x + 2.0f,
-                0.0f,
-                0.0f);
+            plane->model = 
+                Matrix_Translate(
+                    last_drawn_position.x + 2.0f,
+                    0.0f,
+                    0.0f)
+                * Matrix_Scale(
+                    1.0f,
+                    1.0f,
+                    TRACK_WIDTH/2.0f);
 
             objectInstances.push_back(plane);
 
@@ -400,6 +413,27 @@ int main(int argc, char* argv[])
         // Testes de intersecção
         glm::vec4 cow_bbox_min = cow->model * g_VirtualScene["cow"].bbox_min;
         glm::vec4 cow_bbox_max = cow->model * g_VirtualScene["cow"].bbox_max;
+
+        glm::vec4 left_plane_point = glm::vec4(cow_position.x,
+                                               0.0f,
+                                               -TRACK_WIDTH/2.0f,
+                                               1.0f);
+        glm::vec4 left_plane_normal = glm::vec4(0.0f,
+                                                0.0f,
+                                                TRACK_WIDTH/2.0f,
+                                                0.0f);
+
+        glm::vec4 right_plane_point = glm::vec4(cow_position.x,
+                                                0.0f,
+                                                TRACK_WIDTH/2.0f,
+                                                1.0f);
+        glm::vec4 right_plane_normal = glm::vec4(0.0f,
+                                                 0.0f,
+                                                 -TRACK_WIDTH/2.0f,
+                                                 0.0f);
+
+        bool intersectedWithLeftBound = PlaneIntersectsBox(left_plane_point, left_plane_normal, cow_bbox_min, cow_bbox_max);
+        bool intersectedWithRightBound = PlaneIntersectsBox(right_plane_point, right_plane_normal, cow_bbox_min, cow_bbox_max);
 
         glm::vec4 plane_local_bbox_min = g_VirtualScene["plane"].bbox_min;
         glm::vec4 plane_local_bbox_max = g_VirtualScene["plane"].bbox_max;
@@ -412,8 +446,8 @@ int main(int argc, char* argv[])
                                          * plane_local_bbox_min;
                 glm::vec4 plane_bbox_max = (**it).model 
                                          * plane_local_bbox_max;
-                if (BBoxIntersectsBBox(cow_bbox_min, cow_bbox_max,
-                                       plane_bbox_min, plane_bbox_max)) {
+                if (BoxIntersectsBox(cow_bbox_min, cow_bbox_max,
+                                     plane_bbox_min, plane_bbox_max)) {
                     intersectedWithGround = true;
                 }
             }
@@ -434,17 +468,20 @@ int main(int argc, char* argv[])
         if (g_LeftPressed == g_RightPressed) {
             cow_velocity.z = 0.0f;
         }
-        else if (g_LeftPressed && intersectedWithGround) {
-            cow_velocity.z = -2.0f;
+        else if (g_LeftPressed && intersectedWithGround && !intersectedWithLeftBound) {
+            cow_velocity.z = -3.0f;
         }
-        else if (g_LeftPressed && !intersectedWithGround) {
-            cow_velocity.z = -1.0f;
+        else if (g_LeftPressed && !intersectedWithGround && !intersectedWithLeftBound) {
+            cow_velocity.z = -1.5f;
         }
-        else if (g_RightPressed && intersectedWithGround) {
-            cow_velocity.z = 2.0f;
+        else if (g_RightPressed && intersectedWithGround && !intersectedWithRightBound) {
+            cow_velocity.z = 3.0f;
         }
-        else if (g_RightPressed && !intersectedWithGround) {
-            cow_velocity.z = 2.0f;
+        else if (g_RightPressed && !intersectedWithGround && !intersectedWithRightBound) {
+            cow_velocity.z = 1.5f;
+        }
+        else {
+            cow_velocity.z = 0.0f;
         }
         
         cow_position = cow_position + cow_velocity * delta_time;
@@ -570,14 +607,24 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-// Testa se duas bounding boxes se intersectam.
-bool BBoxIntersectsBBox(glm::vec4 bbox_min_a, glm::vec4 bbox_max_a, glm::vec4 bbox_min_b, glm::vec4 bbox_max_b) {
+// Testa se duas caixas alinhadas aos eixos de coordenadas se intersectam.
+bool BoxIntersectsBox(glm::vec4 bbox_min_a, glm::vec4 bbox_max_a, glm::vec4 bbox_min_b, glm::vec4 bbox_max_b) {
     return bbox_max_a.x >= bbox_min_b.x
         && bbox_max_a.y >= bbox_min_b.y
         && bbox_max_a.z >= bbox_min_b.z
         && bbox_max_b.x >= bbox_min_a.x
         && bbox_max_b.y >= bbox_min_a.y
         && bbox_max_b.z >= bbox_min_a.z;
+}
+
+// Testa a intersecção de um plano com uma caixa, assumindo que ambos estão 
+// alinhados com os eixos de coordenadas.
+bool PlaneIntersectsBox(glm::vec4 plane_point, glm::vec4 plane_normal, glm::vec4 bbox_min, glm::vec4 bbox_max) {
+    // Testa se bbox_min e bbox_max estão em lados diferentes do plano.
+    float plane_equation_min = dotproduct(plane_normal, (bbox_min - plane_point));
+    float plane_equation_max = dotproduct(plane_normal, (bbox_max - plane_point));
+
+    return plane_equation_min * plane_equation_max <= 0.0f;
 }
 
 // Função que carrega uma imagem para ser utilizada como textura
