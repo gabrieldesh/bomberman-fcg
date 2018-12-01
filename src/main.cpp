@@ -308,6 +308,10 @@ int main(int argc, char* argv[])
     ComputeNormals(&planemodel);
     BuildTrianglesAndAddToVirtualScene(&planemodel);
 
+    ObjModel cactusmodel("../../data/cactus.obj");
+    ComputeNormals(&cactusmodel);
+    BuildTrianglesAndAddToVirtualScene(&cactusmodel);
+
     // Inicializamos o código para renderização de texto.
     TextRendering_Init();
 
@@ -351,6 +355,14 @@ int main(int argc, char* argv[])
     cow->name = "cow";
     objectInstances.push_back(cow);
 
+    ObjectInstance *cactus = new ObjectInstance;
+    cactus->id = COW;
+    cactus->name = "cactus";
+    cactus->model = Matrix_Translate(2.0f,0.0f,0.0f);
+    objectInstances.push_back(cactus);
+    glm::vec4 cactus_bbox_min = cactus->model * g_VirtualScene["cactus"].bbox_min;
+    glm::vec4 cactus_bbox_max = cactus->model * g_VirtualScene["cactus"].bbox_max;
+
     glm::vec4 cow_position  = glm::vec4(
             0.0f,
             1.0f,
@@ -358,7 +370,7 @@ int main(int argc, char* argv[])
             1.0f);
 
     glm::vec4 cow_velocity = glm::vec4(
-            3.0f,
+            0.0f,
             0.0f,
             0.0f,
             0.0f);
