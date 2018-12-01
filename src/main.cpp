@@ -53,6 +53,7 @@
 #define PI 3.141592
 #define GRAVITY_ACCELERATION 9.8
 #define ORIGIN glm::vec4(0.0f,0.0f,0.0f,1.0f)
+#define JUMP_INITIAL_VELOCITY 4.0f
 
 #define PLANE 0
 #define COW 1
@@ -179,6 +180,7 @@ bool g_RightMouseButtonPressed = false; // Análogo para botão direito do mouse
 bool g_MiddleMouseButtonPressed = false; // Análogo para botão do meio do mouse
 bool g_LeftPressed = false;
 bool g_RightPressed = false;
+bool g_SpacePressed = false;
 
 
 // Variáveis que definem a câmera em coordenadas esféricas, controladas pelo
@@ -395,8 +397,6 @@ int main(int argc, char* argv[])
             last_drawn_plane = plane;
         }
 
-        cow_velocity.y -= GRAVITY_ACCELERATION * delta_time;
-
         if (g_LeftPressed == g_RightPressed) {
             cow_velocity.z = 0.0f;
         }
@@ -414,6 +414,7 @@ int main(int argc, char* argv[])
         glm::vec4 plane_local_bbox_min = g_VirtualScene["plane"].bbox_min;
         glm::vec4 plane_local_bbox_max = g_VirtualScene["plane"].bbox_max;
 
+        bool intersectedWithGround = false;
         std::list<ObjectInstance*>::iterator it = objectInstances.begin();
         while (it != objectInstances.end()) {
             if ((**it).id == PLANE) {
@@ -423,10 +424,21 @@ int main(int argc, char* argv[])
                                          * plane_local_bbox_max;
                 if (BBoxIntersectsBBox(cow_bbox_min, cow_bbox_max,
                                        plane_bbox_min, plane_bbox_max)) {
-                    if (cow_velocity.y < 0.0f) cow_velocity.y = 0.0f;
+                    intersectedWithGround = true;
                 }
             }
             it++;
+        }
+
+        if (intersectedWithGround && g_SpacePressed) {
+            cow_velocity.y = JUMP_INITIAL_VELOCITY;
+        }
+        else if (intersectedWithGround) {
+            cow_velocity.y = 0.0f;
+            cow_position.y = 0.6f;
+        }
+        else {
+            cow_velocity.y += -GRAVITY_ACCELERATION * delta_time;
         }
         
         cow_position = cow_position + cow_velocity * delta_time;
@@ -1281,6 +1293,15 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
     if (key == GLFW_KEY_D && action == GLFW_RELEASE)
     {
         g_RightPressed = false;
+    }
+
+    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
+    {
+        g_SpacePressed = true;
+    }
+    if (key == GLFW_KEY_SPACE && action == GLFW_RELEASE)
+    {
+        g_SpacePressed = false;
     }
 
     if (key == GLFW_KEY_X && action == GLFW_PRESS)
