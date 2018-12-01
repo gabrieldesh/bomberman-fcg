@@ -397,16 +397,6 @@ int main(int argc, char* argv[])
             last_drawn_plane = plane;
         }
 
-        if (g_LeftPressed == g_RightPressed) {
-            cow_velocity.z = 0.0f;
-        }
-        else if (g_LeftPressed) {
-            cow_velocity.z = -2.0f;
-        }
-        else {
-            cow_velocity.z = 2.0f;
-        }
-
         // Testes de intersecção
         glm::vec4 cow_bbox_min = cow->model * g_VirtualScene["cow"].bbox_min;
         glm::vec4 cow_bbox_max = cow->model * g_VirtualScene["cow"].bbox_max;
@@ -439,6 +429,22 @@ int main(int argc, char* argv[])
         }
         else {
             cow_velocity.y += -GRAVITY_ACCELERATION * delta_time;
+        }
+
+        if (g_LeftPressed == g_RightPressed) {
+            cow_velocity.z = 0.0f;
+        }
+        else if (g_LeftPressed && intersectedWithGround) {
+            cow_velocity.z = -2.0f;
+        }
+        else if (g_LeftPressed && !intersectedWithGround) {
+            cow_velocity.z = -1.0f;
+        }
+        else if (g_RightPressed && intersectedWithGround) {
+            cow_velocity.z = 2.0f;
+        }
+        else if (g_RightPressed && !intersectedWithGround) {
+            cow_velocity.z = 2.0f;
         }
         
         cow_position = cow_position + cow_velocity * delta_time;
