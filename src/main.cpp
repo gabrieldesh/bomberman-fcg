@@ -187,8 +187,8 @@ bool g_SpacePressed = false;
 // usuário através do mouse (veja função CursorPosCallback()). A posição
 // efetiva da câmera é calculada dentro da função main(), dentro do loop de
 // renderização.
-float g_CameraTheta = -PI / 2.0; // Ângulo no plano ZX em relação ao eixo Z
-float g_CameraPhi = 0.0f;   // Ângulo em relação ao eixo Y
+float g_CameraTheta = -PI / 2.0f; // Ângulo no plano ZX em relação ao eixo Z
+float g_CameraPhi = PI / 8.0f;   // Ângulo em relação ao eixo Y
 float g_CameraDistance = 3.5f; // Distância da câmera para a origem
 
 // Variáveis que controlam rotação do antebraço
@@ -1277,20 +1277,20 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
 
     float delta = 3.141592 / 16; // 22.5 graus, em radianos.
 
-    if (key == GLFW_KEY_A && action == GLFW_PRESS)
+    if (key == GLFW_KEY_LEFT&& action == GLFW_PRESS)
     {
         g_LeftPressed = true;
     }
-    if (key == GLFW_KEY_A && action == GLFW_RELEASE)
+    if (key == GLFW_KEY_LEFT && action == GLFW_RELEASE)
     {
         g_LeftPressed = false;
     }
 
-    if (key == GLFW_KEY_D && action == GLFW_PRESS)
+    if (key == GLFW_KEY_RIGHT && action == GLFW_PRESS)
     {
         g_RightPressed = true;
     }
-    if (key == GLFW_KEY_D && action == GLFW_RELEASE)
+    if (key == GLFW_KEY_RIGHT && action == GLFW_RELEASE)
     {
         g_RightPressed = false;
     }
