@@ -89,6 +89,8 @@ struct ObjModel
 void PushMatrix(glm::mat4 M);
 void PopMatrix(glm::mat4& M);
 
+bool BBoxIntersectsBBox(glm::vec4 bbox_min_a, glm::vec4 bbox_max_a, glm::vec4 bbox_min_b, glm::vec4 bbox_max_b);
+
 // Declaração de várias funções utilizadas em main().  Essas estão definidas
 // logo após a definição de main() neste arquivo.
 void BuildTrianglesAndAddToVirtualScene(ObjModel*); // Constrói representação de um ObjModel como malha de triângulos para renderização
@@ -138,8 +140,8 @@ struct SceneObject
     int          num_indices; // Número de índices do objeto dentro do vetor indices[] definido em BuildTrianglesAndAddToVirtualScene()
     GLenum       rendering_mode; // Modo de rasterização (GL_TRIANGLES, GL_TRIANGLE_STRIP, etc.)
     GLuint       vertex_array_object_id; // ID do VAO onde estão armazenados os atributos do modelo
-    glm::vec3    bbox_min; // Axis-Aligned Bounding Box do objeto
-    glm::vec3    bbox_max;
+    glm::vec4    bbox_min; // Axis-Aligned Bounding Box do objeto
+    glm::vec4    bbox_max;
 };
 
 // Armazena a matriz de transformação e outros dados necessários para desenhar
@@ -184,7 +186,7 @@ bool g_RightPressed = false;
 // efetiva da câmera é calculada dentro da função main(), dentro do loop de
 // renderização.
 float g_CameraTheta = -PI / 2.0; // Ângulo no plano ZX em relação ao eixo Z
-float g_CameraPhi = 0.5f;   // Ângulo em relação ao eixo Y
+float g_CameraPhi = 0.0f;   // Ângulo em relação ao eixo Y
 float g_CameraDistance = 3.5f; // Distância da câmera para a origem
 
 // Variáveis que controlam rotação do antebraço
@@ -341,7 +343,7 @@ int main(int argc, char* argv[])
 
     glm::vec4 cow_position  = glm::vec4(
             0.0f,
-            0.7f,
+            1.0f,
             0.0f,
             1.0f);
 
@@ -375,6 +377,23 @@ int main(int argc, char* argv[])
         // Pedimos para a GPU utilizar o programa de GPU criado acima (contendo
         // os shaders de vértice e fragmentos).
         glUseProgram(program_id);
+        
+        // Se necessário, cria uma nova instância de chão para entrar na cena
+        glm::vec4 last_drawn_position = last_drawn_plane->model * ORIGIN;
+        float distance_from_cow = norm(last_drawn_position - cow_position);
+        if (distance_from_cow <= farplane_distance - 1.0f) {
+            ObjectInstance *plane = new ObjectInstance;
+            plane->id = PLANE;
+            plane->name = "plane";
+            plane->model = Matrix_Translate(
+                last_drawn_position.x + 2.0f,
+                0.0f,
+                0.0f);
+
+            objectInstances.push_back(plane);
+
+            last_drawn_plane = plane;
+        }
 
         cow_velocity.y -= GRAVITY_ACCELERATION * delta_time;
 
@@ -386,6 +405,28 @@ int main(int argc, char* argv[])
         }
         else {
             cow_velocity.z = 2.0f;
+        }
+
+        // Testes de intersecção
+        glm::vec4 cow_bbox_min = cow->model * g_VirtualScene["cow"].bbox_min;
+        glm::vec4 cow_bbox_max = cow->model * g_VirtualScene["cow"].bbox_max;
+
+        glm::vec4 plane_local_bbox_min = g_VirtualScene["plane"].bbox_min;
+        glm::vec4 plane_local_bbox_max = g_VirtualScene["plane"].bbox_max;
+
+        std::list<ObjectInstance*>::iterator it = objectInstances.begin();
+        while (it != objectInstances.end()) {
+            if ((**it).id == PLANE) {
+                glm::vec4 plane_bbox_min = (**it).model 
+                                         * plane_local_bbox_min;
+                glm::vec4 plane_bbox_max = (**it).model 
+                                         * plane_local_bbox_max;
+                if (BBoxIntersectsBBox(cow_bbox_min, cow_bbox_max,
+                                       plane_bbox_min, plane_bbox_max)) {
+                    if (cow_velocity.y < 0.0f) cow_velocity.y = 0.0f;
+                }
+            }
+            it++;
         }
         
         cow_position = cow_position + cow_velocity * delta_time;
@@ -448,25 +489,8 @@ int main(int argc, char* argv[])
         glUniformMatrix4fv(view_uniform       , 1 , GL_FALSE , glm::value_ptr(view));
         glUniformMatrix4fv(projection_uniform , 1 , GL_FALSE , glm::value_ptr(projection));
 
-        // Se necessário, cria uma nova instância de chão para entrar na cena
-        glm::vec4 last_drawn_position = last_drawn_plane->model * ORIGIN;
-        float distance_from_cow = norm(last_drawn_position - cow_position);
-        if (distance_from_cow <= farplane_distance - 1.0f) {
-            ObjectInstance *plane = new ObjectInstance;
-            plane->id = PLANE;
-            plane->name = "plane";
-            plane->model = Matrix_Translate(
-                last_drawn_position.x + 2.0f,
-                0.0f,
-                0.0f);
-
-            objectInstances.push_back(plane);
-
-            last_drawn_plane = plane;
-        }
-
         // Loop de desenho
-        std::list<ObjectInstance*>::iterator it = objectInstances.begin();
+        it = objectInstances.begin();
         while (it != objectInstances.end()) {
 
             // Destroi o objeto se ele se afastou da cena
@@ -526,6 +550,16 @@ int main(int argc, char* argv[])
 
     // Fim do programa
     return 0;
+}
+
+// Testa se duas bounding boxes se intersectam.
+bool BBoxIntersectsBBox(glm::vec4 bbox_min_a, glm::vec4 bbox_max_a, glm::vec4 bbox_min_b, glm::vec4 bbox_max_b) {
+    return bbox_max_a.x >= bbox_min_b.x
+        && bbox_max_a.y >= bbox_min_b.y
+        && bbox_max_a.z >= bbox_min_b.z
+        && bbox_max_b.x >= bbox_min_a.x
+        && bbox_max_b.y >= bbox_min_a.y
+        && bbox_max_b.z >= bbox_min_a.z;
 }
 
 // Função que carrega uma imagem para ser utilizada como textura
@@ -767,8 +801,8 @@ void BuildTrianglesAndAddToVirtualScene(ObjModel* model)
         const float minval = std::numeric_limits<float>::min();
         const float maxval = std::numeric_limits<float>::max();
 
-        glm::vec3 bbox_min = glm::vec3(maxval,maxval,maxval);
-        glm::vec3 bbox_max = glm::vec3(minval,minval,minval);
+        glm::vec4 bbox_min = glm::vec4(maxval,maxval,maxval,1.0f);
+        glm::vec4 bbox_max = glm::vec4(minval,minval,minval,1.0f);
 
         for (size_t triangle = 0; triangle < num_triangles; ++triangle)
         {
