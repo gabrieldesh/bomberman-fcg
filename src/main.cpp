@@ -58,10 +58,11 @@
 #define GRAVITY_ACCELERATION 9.8
 #define JUMP_INITIAL_VELOCITY 4.0f
 #define TRACK_WIDTH 4.0f
-
 #define MIN_DISTANCE_BETWEEN_HOLES 3
 #define MAX_DISTANCE_BETWEEN_HOLES 5
 #define PLANE_LENGTH 3.0f
+
+#define COW_FEET_BBOX_HEIGHT 0.2f
 
 #define PLANE 0
 #define COW 1
@@ -470,6 +471,14 @@ int main(int argc, char* argv[])
         glm::vec4 plane_local_bbox_min = g_VirtualScene["plane"].bbox_min;
         glm::vec4 plane_local_bbox_max = g_VirtualScene["plane"].bbox_max;
 
+        glm::vec4 cow_feet_bbox_min = cow_bbox_min;
+        glm::vec4 cow_feet_bbox_max = glm::vec4(
+            cow_bbox_max.x,
+            cow_bbox_min.y + COW_FEET_BBOX_HEIGHT,
+            cow_bbox_max.z,
+            1.0f
+        );
+
         bool intersectedWithGround = false;
         std::list<ObjectInstance*>::iterator it = objectInstances.begin();
         while (it != objectInstances.end()) {
@@ -478,7 +487,7 @@ int main(int argc, char* argv[])
                                          * plane_local_bbox_min;
                 glm::vec4 plane_bbox_max = (**it).model 
                                          * plane_local_bbox_max;
-                if (BoxIntersectsBox(cow_bbox_min, cow_bbox_max,
+                if (BoxIntersectsBox(cow_feet_bbox_min, cow_feet_bbox_max,
                                      plane_bbox_min, plane_bbox_max)) {
                     intersectedWithGround = true;
                 }
