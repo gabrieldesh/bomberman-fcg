@@ -60,8 +60,8 @@ void main()
     // normais de cada vértice.
     vec4 n = normalize(normal);
 
-    // Vetor que define o sentido da fonte de luz em relação ao ponto atual.
-    vec4 l = normalize(vec4(1.0,1.0,0.0,0.0));
+    // Fonte de luz direcional
+    vec4 l = normalize(vec4(-1.0,1.0,0.0,0.0));
 
     // Vetor que define o sentido da câmera em relação ao ponto atual.
     vec4 v = normalize(camera_position - p);
@@ -84,30 +84,22 @@ void main()
     // }
     if ( object_id == COW)
     {
-        float minx = bbox_min.x;
-        float maxx = bbox_max.x;
+        vec3 Kd = vec3(0.35, 0.27, 0.16);
+        vec3 I = vec3(1.0, 1.0, 1.0);
 
-        float miny = bbox_min.y;
-        float maxy = bbox_max.y;
+        vec3 Ka = Kd;
+        vec3 Ia = vec3(0.3, 0.3, 0.3);
 
-        float minz = bbox_min.z;
-        float maxz = bbox_max.z;
+        vec3 Ks = vec3(0.5, 0.5, 0.5);
+        float q = 150.0;
 
-        U = (position_model.x - minx) / (maxx - minx);
-        V = (position_model.y - miny) / (maxy - miny);
+        vec4 h = normalize(v + l);
 
-        // Obtemos a refletância difusa a partir da leitura da imagem TextureImage0
-        vec3 Kd0 = texture(TextureImage0, vec2(U,V)).rgb;
-        vec3 Kd1 = texture(TextureImage1, vec2(U,V)).rgb;
+        vec3 lambert = Kd*I*max(0, dot(n,l));
+        vec3 ambient = Ka*Ia;
+        vec3 blinn_phong = Ks*I*pow(max(0, dot(n, h)), q);
 
-        // Equação de Iluminação
-        float lambert = max(0,dot(n,l));
-
-        color = Kd0 * (lambert + 0.01) + Kd1 * (1 - lambert + 0.01);
-
-        // Cor final com correção gamma, considerando monitor sRGB.
-        // Veja https://en.wikipedia.org/w/index.php?title=Gamma_correction&oldid=751281772#Windows.2C_Mac.2C_sRGB_and_TV.2Fvideo_standard_gammas
-        color = pow(color, vec3(1.0,1.0,1.0)/2.2);
+        color = lambert + ambient + blinn_phong;
     }
     else if ( object_id == PLANE )
     {

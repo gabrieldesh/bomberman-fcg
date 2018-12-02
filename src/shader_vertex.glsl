@@ -72,7 +72,10 @@ void main()
         // Modelo de iluminação difusa (Lambert).
         // Modelo de interpolação de Gourad.
         vec4 n = normalize(normal);
-        vec4 l = normalize(vec4(-1.0,1.0,1.0,0.0)); // Fonte de luz direcional
+
+        // Fonte de luz direcional
+        vec4 l = normalize(vec4(-1.0, 1.0, 0.0, 0.0));
+        
         vec3 I = vec3(1.0,1.0,1.0);
         vec3 Kd = vec3(0.0,1.0,0.0);
 
