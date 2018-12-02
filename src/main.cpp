@@ -61,6 +61,7 @@
 #define MIN_DISTANCE_BETWEEN_HOLES 3
 #define MAX_DISTANCE_BETWEEN_HOLES 5
 #define CACTUS_RATE 0.8f
+#define EAGLE_RATE 0.1f
 #define PLANE_LENGTH 3.0f
 
 #define COW_FEET_BBOX_HEIGHT 0.2f
@@ -160,6 +161,12 @@ struct SceneObject
     glm::vec4    bbox_max;
 };
 
+struct CubicBezierMotion {
+    glm::vec4 control_points[4];
+    float initial_time;
+    glm::mat4 initial_model_matrix;
+};
+
 // Armazena a matriz de transformação e outros dados necessários para desenhar
 // uma instância de modelo.
 struct ObjectInstance
@@ -167,6 +174,14 @@ struct ObjectInstance
     int id;
     std::string name; // Nome do objeto na g_VirtualScene
     glm::mat4 model; // Matriz de transformação para esta instância do modelo
+    CubicBezierMotion* motion;
+
+    ObjectInstance() {
+        motion = NULL;
+    }
+    ~ObjectInstance() {
+        delete motion;
+    }
 };
 
 // Abaixo definimos variáveis globais utilizadas em várias funções do código.
@@ -382,23 +397,6 @@ int main(int argc, char* argv[])
     cow->name = "cow";
     objectInstances.push_back(cow);
 
-    // Adiciona a única instância da vaca
-    ObjectInstance *eagle = new ObjectInstance;
-    eagle->id = EAGLE;
-    eagle->name = "eagle";
-    eagle->model = Matrix_Translate(
-        2.0,
-        2.0,
-        0.0
-    ) * Matrix_Rotate_Y(
-        -PI / 2.0
-    ) * Matrix_Scale(
-        0.07,
-        0.07,
-        0.07
-    );
-    objectInstances.push_back(eagle);
-
     glm::vec4 cow_position  = glm::vec4(
             0.0f,
             1.0f,
@@ -406,7 +404,7 @@ int main(int argc, char* argv[])
             1.0f);
 
     glm::vec4 cow_velocity = glm::vec4(
-            0.0,//5.0f,
+            5.0f,
             0.0f,
             0.0f,
             0.0f);
@@ -487,10 +485,72 @@ int main(int argc, char* argv[])
                                                      random_position.z);
                     objectInstances.push_back(cactus);
                 }
+
+                if (random(0.0, 1.0) <= EAGLE_RATE) {
+                    glm::vec4 initial_position = new_plane_position + glm::vec4(
+                        0.0,
+                        2.0,
+                        0.0,
+                        0.0);
+
+                    ObjectInstance *eagle = new ObjectInstance;
+                    eagle->id = EAGLE;
+                    eagle->name = "eagle";
+
+                    CubicBezierMotion *motion = new CubicBezierMotion;
+
+                    motion->control_points[0] = initial_position;
+                    motion->control_points[1] = initial_position + glm::vec4(-1.0, 0.0, 0.0, 0.0);
+                    motion->control_points[2] = initial_position + glm::vec4(-2.0, 1.0, 0.0, 0.0);
+                    motion->control_points[3] = cow_position;//initial_position + glm::vec4(-3.0, 0.0, 0.0, 0.0);
+
+                    motion->initial_time = time;
+                    motion->initial_model_matrix = Matrix_Rotate_Y(
+                        -PI / 2.0
+                    ) * Matrix_Scale(
+                        0.02,
+                        0.02,
+                        0.02
+                    );
+
+                    eagle->motion = motion;
+
+                    objectInstances.push_back(eagle);
+                }
             }
 
             last_drawn_position = new_plane_position;
             distance_to_next_hole--;
+        }
+
+        std::list<ObjectInstance*>::iterator iter = objectInstances.begin();
+        while (iter != objectInstances.end()) {
+            CubicBezierMotion *motion = (**iter).motion;
+            if (motion == NULL) {
+                iter++;
+                continue;
+            }
+
+            float animation_velocity = 1.0f;
+            float t = (time - motion->initial_time) * animation_velocity;
+
+            // Pontos de controle da curva Bézier da animação
+            glm::vec4 p1 = motion->control_points[0];
+            glm::vec4 p2 = motion->control_points[1];
+            glm::vec4 p3 = motion->control_points[2];
+            glm::vec4 p4 = motion->control_points[3];
+
+            // Posição da instância de modelo, dada pela curva Bézier
+            glm::vec4 p = (float)pow(1.0f - t, 3)              * p1
+                        + 3.0f * t * (float)pow(1.0f - t, 2)   * p2
+                        + 3.0f * (float)pow(t, 2) * (1.0f - t) * p3
+                        + (float)pow(t, 3)                     * p4;
+            
+            (**iter).model = Matrix_Translate(
+                p.x, p.y, p.z
+            ) * motion->initial_model_matrix;
+
+            iter++;
         }
 
         // Testes de intersecção
@@ -529,38 +589,33 @@ int main(int argc, char* argv[])
             1.0f
         );
 
+        glm::vec4 cactus_local_bbox_min = g_VirtualScene["cactus"].bbox_min;
+        glm::vec4 cactus_local_bbox_max = g_VirtualScene["cactus"].bbox_max;
+
         bool intersectedWithGround = false;
-        std::list<ObjectInstance*>::iterator it = objectInstances.begin();
-        while (it != objectInstances.end()) {
-            if ((**it).id == PLANE) {
-                glm::vec4 plane_bbox_min = (**it).model 
+        std::list<ObjectInstance*>::iterator instance = objectInstances.begin();
+        while (instance != objectInstances.end()) {
+            if ((**instance).id == PLANE) {
+                glm::vec4 plane_bbox_min = (**instance).model 
                                          * plane_local_bbox_min;
-                glm::vec4 plane_bbox_max = (**it).model 
+                glm::vec4 plane_bbox_max = (**instance).model 
                                          * plane_local_bbox_max;
                 if (BoxIntersectsBox(cow_feet_bbox_min, cow_feet_bbox_max,
                                      plane_bbox_min, plane_bbox_max)) {
                     intersectedWithGround = true;
                 }
             }
-            it++;
-        }
-
-        glm::vec4 cactus_local_bbox_min = g_VirtualScene["cactus"].bbox_min;
-        glm::vec4 cactus_local_bbox_max = g_VirtualScene["cactus"].bbox_max;
-
-        it = objectInstances.begin();
-        while (it != objectInstances.end()) {
-            if ((**it).id == CACTUS) {
-                glm::vec4 cactus_bbox_min = (**it).model 
+            else if ((**instance).id == CACTUS) {
+                glm::vec4 cactus_bbox_min = (**instance).model 
                                          * cactus_local_bbox_min;
-                glm::vec4 cactus_bbox_max = (**it).model 
+                glm::vec4 cactus_bbox_max = (**instance).model 
                                          * cactus_local_bbox_max;
                 if (BoxIntersectsBox(cow_bbox_min, cow_bbox_max,
                                      cactus_bbox_min, cactus_bbox_max)) {
                     game_over = true;
                 }
             }
-            it++;
+            instance++;
         }
 
         if (game_over) {
@@ -677,7 +732,7 @@ int main(int argc, char* argv[])
         glUniformMatrix4fv(projection_uniform , 1 , GL_FALSE , glm::value_ptr(projection));
 
         // Loop de desenho
-        it = objectInstances.begin();
+        std::list<ObjectInstance*>::iterator it = objectInstances.begin();
         while (it != objectInstances.end()) {
 
             // Destroi o objeto se ele se afastou da cena
