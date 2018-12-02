@@ -61,6 +61,7 @@
 
 #define MIN_DISTANCE_BETWEEN_HOLES 3
 #define MAX_DISTANCE_BETWEEN_HOLES 5
+#define PLANE_LENGTH 3.0f
 
 #define PLANE 0
 #define COW 1
@@ -342,17 +343,17 @@ int main(int argc, char* argv[])
     // Adiciona as primeiras instâncias de chão. As instâncias vão sendo 
     // apagadas à medida que se afastam da cena.
     ObjectInstance *plane;
-    for (int i = 0; i < farplane_distance; i++) {
+    for (int i = 0; i < 2*farplane_distance/PLANE_LENGTH; i++) {
         plane = new ObjectInstance;
         plane->id = PLANE;
         plane->name = "plane";
         plane->model = 
             Matrix_Translate(
-                -farplane_distance + 2*i + 1,
+                -farplane_distance + PLANE_LENGTH * ((float) i + 1.0 / 2.0),
                 0.0f,
                 0.0f)
             * Matrix_Scale(
-                1.0f,
+                PLANE_LENGTH / 2.0f,
                 1.0f,
                 TRACK_WIDTH/2.0f);
 
@@ -408,9 +409,9 @@ int main(int argc, char* argv[])
         
         // Se necessário, cria uma nova instância de chão para entrar na cena
         float distance_from_cow = norm(last_drawn_position - cow_position);
-        if (distance_from_cow <= farplane_distance - 1.0f) {
+        if (distance_from_cow <= farplane_distance - PLANE_LENGTH / 2.0) {
             glm::vec4 new_plane_position = glm::vec4(
-                    last_drawn_position.x + 2.0f,
+                    last_drawn_position.x + PLANE_LENGTH,
                     0.0f,
                     0.0f,
                     1.0f);
@@ -430,10 +431,10 @@ int main(int argc, char* argv[])
                         new_plane_position.y,
                         new_plane_position.z)
                     * Matrix_Scale(
-                        1.0f,
+                        PLANE_LENGTH/2.0f,
                         1.0f,
                         TRACK_WIDTH/2.0f);
-
+                
                 objectInstances.push_back(new_plane);
             }
 
