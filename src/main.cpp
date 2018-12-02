@@ -101,6 +101,8 @@ struct ObjModel
 void PushMatrix(glm::mat4 M);
 void PopMatrix(glm::mat4& M);
 
+void DrawBBox(glm::vec4 bbox_min, glm::vec4 bbox_max);
+
 bool BoxIntersectsBox(glm::vec4 bbox_min_a, glm::vec4 bbox_max_a, glm::vec4 bbox_min_b, glm::vec4 bbox_max_b);
 bool PlaneIntersectsBox(glm::vec4 plane_point, glm::vec4 plane_normal, glm::vec4 bbox_min, glm::vec4 bbox_max);
 
@@ -801,6 +803,37 @@ void DrawVirtualObject(std::string object_name)
     // "Desligamos" o VAO, evitando assim que operações posteriores venham a
     // alterar o mesmo. Isso evita bugs.
     glBindVertexArray(0);
+}
+
+void DrawBBox(glm::vec4 bbox_min, glm::vec4 bbox_max)
+{
+    if (g_ShowInfoText) {
+        glm::mat4 model1 = Matrix_Translate(
+            bbox_max.x - (bbox_max.x - bbox_min.x) / 2.0,
+            bbox_max.y,
+            bbox_max.z - (bbox_max.z - bbox_min.z) / 2.0
+        ) * Matrix_Scale(
+            (bbox_max.x - bbox_min.x) / 2.0,
+            1.0,
+            (bbox_max.z - bbox_min.z) / 2.0
+        );
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model1));
+        glUniform1i(object_id_uniform, PLANE);
+        DrawVirtualObject("plane");
+
+        glm::mat4 model2 = Matrix_Translate(
+            bbox_min.x + (bbox_max.x - bbox_min.x) / 2.0,
+            bbox_min.y,
+            bbox_min.z + (bbox_max.z - bbox_min.z) / 2.0
+        ) * Matrix_Scale(
+            (bbox_max.x - bbox_min.x) / 2.0,
+            1.0,
+            (bbox_max.z - bbox_min.z) / 2.0
+        );
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model2));
+        glUniform1i(object_id_uniform, PLANE);
+        DrawVirtualObject("plane");
+    }
 }
 
 // Função que carrega os shaders de vértices e de fragmentos que serão
