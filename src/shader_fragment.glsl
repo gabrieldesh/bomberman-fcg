@@ -21,6 +21,7 @@ uniform mat4 projection;
 // Identificador que define qual objeto está sendo desenhado no momento
 #define PLANE 0
 #define COW 1
+#define CACTUS 2
 uniform int object_id;
 
 // Parâmetros da axis-aligned bounding box (AABB) do modelo
@@ -79,7 +80,7 @@ void main()
         U = (theta + M_PI) / (2 * M_PI);
         V = (phi + M_PI_2) / M_PI;
     }
-    else if ( object_id == COW )
+    else if ( object_id == COW || object_id == CACTUS )
     {
         float minx = bbox_min.x;
         float maxx = bbox_max.x;

@@ -67,6 +67,7 @@
 
 #define PLANE 0
 #define COW 1
+#define CACTUS 2
 
 // Estrutura que representa um modelo geométrico carregado a partir de um
 // arquivo ".obj". Veja https://en.wikipedia.org/wiki/Wavefront_.obj_file .
@@ -385,6 +386,8 @@ int main(int argc, char* argv[])
                                        MAX_DISTANCE_BETWEEN_HOLES + 1);
 
     float time = glfwGetTime();
+    bool game_over = false;
+
     // Ficamos em loop, renderizando, até que o usuário feche a janela
     while (!glfwWindowShouldClose(window))
     {
@@ -448,7 +451,7 @@ int main(int argc, char* argv[])
                                               + random_displacement;
 
                     ObjectInstance *cactus = new ObjectInstance;
-                    cactus->id = COW;
+                    cactus->id = CACTUS;
                     cactus->name = "cactus";
                     cactus->model = Matrix_Translate(random_position.x,
                                                      random_position.y,
@@ -513,34 +516,57 @@ int main(int argc, char* argv[])
             it++;
         }
 
-        if (intersectedWithGround && g_SpacePressed) {
-            cow_velocity.y = JUMP_INITIAL_VELOCITY;
-        }
-        else if (intersectedWithGround) {
-            cow_velocity.y = 0.0f;
-            cow_position.y = 0.6f;
-        }
-        else {
-            cow_velocity.y += -GRAVITY_ACCELERATION * delta_time;
+        glm::vec4 cactus_local_bbox_min = g_VirtualScene["cactus"].bbox_min;
+        glm::vec4 cactus_local_bbox_max = g_VirtualScene["cactus"].bbox_max;
+
+        it = objectInstances.begin();
+        while (it != objectInstances.end()) {
+            if ((**it).id == CACTUS) {
+                glm::vec4 cactus_bbox_min = (**it).model 
+                                         * cactus_local_bbox_min;
+                glm::vec4 cactus_bbox_max = (**it).model 
+                                         * cactus_local_bbox_max;
+                if (BoxIntersectsBox(cow_bbox_min, cow_bbox_max,
+                                     cactus_bbox_min, cactus_bbox_max)) {
+                    game_over = true;
+                }
+            }
+            it++;
         }
 
-        if (g_LeftPressed == g_RightPressed) {
-            cow_velocity.z = 0.0f;
-        }
-        else if (g_LeftPressed && intersectedWithGround && !intersectedWithLeftBound) {
-            cow_velocity.z = -3.0f;
-        }
-        else if (g_LeftPressed && !intersectedWithGround && !intersectedWithLeftBound) {
-            cow_velocity.z = -1.5f;
-        }
-        else if (g_RightPressed && intersectedWithGround && !intersectedWithRightBound) {
-            cow_velocity.z = 3.0f;
-        }
-        else if (g_RightPressed && !intersectedWithGround && !intersectedWithRightBound) {
-            cow_velocity.z = 1.5f;
+        if (game_over) {
+            cow_velocity = glm::vec4(0.0f,0.0f,0.0f,0.0f);
         }
         else {
-            cow_velocity.z = 0.0f;
+            if (intersectedWithGround && g_SpacePressed) {
+                cow_velocity.y = JUMP_INITIAL_VELOCITY;
+            }
+            else if (intersectedWithGround) {
+                cow_velocity.y = 0.0f;
+                cow_position.y = 0.6f;
+            }
+            else {
+                cow_velocity.y += -GRAVITY_ACCELERATION * delta_time;
+            }
+
+            if (g_LeftPressed == g_RightPressed) {
+                cow_velocity.z = 0.0f;
+            }
+            else if (g_LeftPressed && intersectedWithGround && !intersectedWithLeftBound) {
+                cow_velocity.z = -3.0f;
+            }
+            else if (g_LeftPressed && !intersectedWithGround && !intersectedWithLeftBound) {
+                cow_velocity.z = -1.5f;
+            }
+            else if (g_RightPressed && intersectedWithGround && !intersectedWithRightBound) {
+                cow_velocity.z = 3.0f;
+            }
+            else if (g_RightPressed && !intersectedWithGround && !intersectedWithRightBound) {
+                cow_velocity.z = 1.5f;
+            }
+            else {
+                cow_velocity.z = 0.0f;
+            }
         }
         
         cow_position = cow_position + cow_velocity * delta_time;
@@ -1395,20 +1421,20 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
 
     float delta = 3.141592 / 16; // 22.5 graus, em radianos.
 
-    if (key == GLFW_KEY_A&& action == GLFW_PRESS)
+    if ((key == GLFW_KEY_A || key == GLFW_KEY_LEFT) && action == GLFW_PRESS)
     {
         g_LeftPressed = true;
     }
-    if (key == GLFW_KEY_A && action == GLFW_RELEASE)
+    if ((key == GLFW_KEY_A || key == GLFW_KEY_LEFT) && action == GLFW_RELEASE)
     {
         g_LeftPressed = false;
     }
 
-    if (key == GLFW_KEY_D && action == GLFW_PRESS)
+    if ((key == GLFW_KEY_D || key == GLFW_KEY_RIGHT) && action == GLFW_PRESS)
     {
         g_RightPressed = true;
     }
-    if (key == GLFW_KEY_D && action == GLFW_RELEASE)
+    if ((key == GLFW_KEY_D || key == GLFW_KEY_RIGHT) && action == GLFW_RELEASE)
     {
         g_RightPressed = false;
     }
