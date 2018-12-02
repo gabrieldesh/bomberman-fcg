@@ -31,6 +31,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <algorithm>
+#include <random>
+#include <functional>
 
 // Headers das bibliotecas OpenGL
 #include <glad/glad.h>   // Criação de contexto OpenGL 3.3
@@ -56,6 +58,9 @@
 #define GRAVITY_ACCELERATION 9.8
 #define JUMP_INITIAL_VELOCITY 4.0f
 #define TRACK_WIDTH 4.0f
+
+#define MIN_DISTANCE_BETWEEN_HOLES 3
+#define MAX_DISTANCE_BETWEEN_HOLES 5
 
 #define PLANE 0
 #define COW 1
@@ -219,6 +224,12 @@ GLint object_id_uniform;
 GLint bbox_min_uniform;
 GLint bbox_max_uniform;
 
+
+// Gerador de números pseudoaleatórios
+std::default_random_engine generator;
+
+float random(float, float);
+
 // Número de texturas carregadas pela função LoadTextureImage()
 GLuint g_NumLoadedTextures = 0;
 
@@ -347,21 +358,13 @@ int main(int argc, char* argv[])
 
         objectInstances.push_back(plane);
     }
-    ObjectInstance *last_drawn_plane = plane;
+    glm::vec4 last_drawn_position = plane->model * ORIGIN;
 
     // Adiciona a única instância da vaca
     ObjectInstance *cow = new ObjectInstance;
     cow->id = COW;
     cow->name = "cow";
     objectInstances.push_back(cow);
-
-    ObjectInstance *cactus = new ObjectInstance;
-    cactus->id = COW;
-    cactus->name = "cactus";
-    cactus->model = Matrix_Translate(2.0f,0.0f,0.0f);
-    objectInstances.push_back(cactus);
-    glm::vec4 cactus_bbox_min = cactus->model * g_VirtualScene["cactus"].bbox_min;
-    glm::vec4 cactus_bbox_max = cactus->model * g_VirtualScene["cactus"].bbox_max;
 
     glm::vec4 cow_position  = glm::vec4(
             0.0f,
@@ -370,10 +373,13 @@ int main(int argc, char* argv[])
             1.0f);
 
     glm::vec4 cow_velocity = glm::vec4(
-            0.0f,
+            3.0f,
             0.0f,
             0.0f,
             0.0f);
+    
+    int distance_to_next_hole = random(MIN_DISTANCE_BETWEEN_HOLES,
+                                       MAX_DISTANCE_BETWEEN_HOLES + 1);
 
     float time = glfwGetTime();
     // Ficamos em loop, renderizando, até que o usuário feche a janela
@@ -401,25 +407,38 @@ int main(int argc, char* argv[])
         glUseProgram(program_id);
         
         // Se necessário, cria uma nova instância de chão para entrar na cena
-        glm::vec4 last_drawn_position = last_drawn_plane->model * ORIGIN;
         float distance_from_cow = norm(last_drawn_position - cow_position);
         if (distance_from_cow <= farplane_distance - 1.0f) {
-            ObjectInstance *plane = new ObjectInstance;
-            plane->id = PLANE;
-            plane->name = "plane";
-            plane->model = 
-                Matrix_Translate(
+            glm::vec4 new_plane_position = glm::vec4(
                     last_drawn_position.x + 2.0f,
                     0.0f,
-                    0.0f)
-                * Matrix_Scale(
-                    1.0f,
-                    1.0f,
-                    TRACK_WIDTH/2.0f);
+                    0.0f,
+                    1.0f);
+            if (distance_to_next_hole == 0) {
+                // Deixa um buraco e sorteia a distância do próximo buraco
+                distance_to_next_hole = random(MIN_DISTANCE_BETWEEN_HOLES,
+                                               MAX_DISTANCE_BETWEEN_HOLES + 1);
+            }
+            else
+            {
+                ObjectInstance *new_plane = new ObjectInstance;
+                new_plane->id = PLANE;
+                new_plane->name = "plane";
+                new_plane->model = 
+                    Matrix_Translate(
+                        new_plane_position.x,
+                        new_plane_position.y,
+                        new_plane_position.z)
+                    * Matrix_Scale(
+                        1.0f,
+                        1.0f,
+                        TRACK_WIDTH/2.0f);
 
-            objectInstances.push_back(plane);
+                objectInstances.push_back(new_plane);
+            }
 
-            last_drawn_plane = plane;
+            last_drawn_position = new_plane_position;
+            distance_to_next_hole--;
         }
 
         // Testes de intersecção
@@ -617,6 +636,12 @@ int main(int argc, char* argv[])
 
     // Fim do programa
     return 0;
+}
+
+// Gera um número aleatório entre a e b.
+float random(float a, float b) {
+    std::uniform_real_distribution<double> distribuition(a,b);
+    return distribuition(generator);
 }
 
 // Testa se duas caixas alinhadas aos eixos de coordenadas se intersectam.
