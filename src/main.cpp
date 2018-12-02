@@ -68,6 +68,7 @@
 #define PLANE 0
 #define COW 1
 #define CACTUS 2
+#define EAGLE 3
 
 // Estrutura que representa um modelo geométrico carregado a partir de um
 // arquivo ".obj". Veja https://en.wikipedia.org/wiki/Wavefront_.obj_file .
@@ -316,7 +317,7 @@ int main(int argc, char* argv[])
 
     // Carregamos duas imagens para serem utilizadas como textura
     LoadTextureImage("../../data/sand.jpg");      // TextureImage0
-    LoadTextureImage("../../data/tc-earth_nightmap_citylights.gif"); // TextureImage1
+    LoadTextureImage("../../data/eagle.tga"); // TextureImage1
 
     // Construímos a representação de objetos geométricos através de malhas de triângulos
     ObjModel cowmodel("../../data/cow.obj");
@@ -330,6 +331,10 @@ int main(int argc, char* argv[])
     ObjModel cactusmodel("../../data/cactus.obj");
     ComputeNormals(&cactusmodel);
     BuildTrianglesAndAddToVirtualScene(&cactusmodel);
+
+    ObjModel eaglemodel("../../data/eagle.obj");
+    ComputeNormals(&eaglemodel);
+    BuildTrianglesAndAddToVirtualScene(&eaglemodel);
 
     // Inicializamos o código para renderização de texto.
     TextRendering_Init();
@@ -377,6 +382,23 @@ int main(int argc, char* argv[])
     cow->name = "cow";
     objectInstances.push_back(cow);
 
+    // Adiciona a única instância da vaca
+    ObjectInstance *eagle = new ObjectInstance;
+    eagle->id = EAGLE;
+    eagle->name = "eagle";
+    eagle->model = Matrix_Translate(
+        2.0,
+        2.0,
+        0.0
+    ) * Matrix_Rotate_Y(
+        -PI / 2.0
+    ) * Matrix_Scale(
+        0.07,
+        0.07,
+        0.07
+    );
+    objectInstances.push_back(eagle);
+
     glm::vec4 cow_position  = glm::vec4(
             0.0f,
             1.0f,
@@ -384,7 +406,7 @@ int main(int argc, char* argv[])
             1.0f);
 
     glm::vec4 cow_velocity = glm::vec4(
-            5.0f,
+            0.0,//5.0f,
             0.0f,
             0.0f,
             0.0f);

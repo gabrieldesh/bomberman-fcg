@@ -24,6 +24,7 @@ uniform mat4 projection;
 #define PLANE 0
 #define COW 1
 #define CACTUS 2
+#define EAGLE 3
 uniform int object_id;
 
 // Parâmetros da axis-aligned bounding box (AABB) do modelo
@@ -72,18 +73,6 @@ void main()
     float U = 0.0;
     float V = 0.0;
 
-    // if ( object_id == 5 )
-    // {
-    //     vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
-
-    //     vec4 vec_p = (position_model - bbox_center) / length(position_model - bbox_center);
-
-    //     float theta = atan(vec_p.x, vec_p.z);
-    //     float phi = asin(vec_p.y);
-
-    //     U = (theta + M_PI) / (2 * M_PI);
-    //     V = (phi + M_PI_2) / M_PI;
-    // }
     if ( object_id == COW)
     {
         vec3 Kd = vec3(0.35, 0.27, 0.16);
@@ -102,14 +91,20 @@ void main()
 
         color = lambert + ambient + blinn_phong;
     }
-    else if ( object_id == PLANE )
+    else if ( object_id == PLANE || object_id == EAGLE )
     {
         // Coordenadas de textura do plano, obtidas do arquivo OBJ.
         U = texcoords.x;
         V = texcoords.y;
 
-        // Obtemos a refletância difusa a partir da leitura da imagem TextureImage0
-        vec3 Kd = texture(TextureImage0, vec2(U,V)).rgb;
+        vec3 Kd;
+        // Obtemos a refletância difusa a partir da leitura da imagem de textura
+        if (object_id == PLANE) {
+            Kd = texture(TextureImage0, vec2(U,V)).rgb;
+        }
+        else {
+            Kd = texture(TextureImage1, vec2(U,V)).rgb;
+        }
 
         color = Kd*I*max(0,dot(n,l));
 
