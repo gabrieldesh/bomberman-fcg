@@ -60,6 +60,7 @@
 #define TRACK_WIDTH 4.0f
 #define MIN_DISTANCE_BETWEEN_HOLES 3
 #define MAX_DISTANCE_BETWEEN_HOLES 5
+#define CACTUS_RATE 0.8f
 #define PLANE_LENGTH 3.0f
 
 #define COW_FEET_BBOX_HEIGHT 0.2f
@@ -375,7 +376,7 @@ int main(int argc, char* argv[])
             1.0f);
 
     glm::vec4 cow_velocity = glm::vec4(
-            3.0f,
+            5.0f,
             0.0f,
             0.0f,
             0.0f);
@@ -437,6 +438,23 @@ int main(int argc, char* argv[])
                         TRACK_WIDTH/2.0f);
                 
                 objectInstances.push_back(new_plane);
+
+                if (random(0.0, 1.0) <= CACTUS_RATE) {
+                    glm::vec4 random_displacement = glm::vec4(random(-1.0,1.0),
+                                                            0.0f,
+                                                            random(-1.0,1.0),
+                                                            0.0f);
+                    glm::vec4 random_position = new_plane_position
+                                              + random_displacement;
+
+                    ObjectInstance *cactus = new ObjectInstance;
+                    cactus->id = COW;
+                    cactus->name = "cactus";
+                    cactus->model = Matrix_Translate(random_position.x,
+                                                     random_position.y,
+                                                     random_position.z);
+                    objectInstances.push_back(cactus);
+                }
             }
 
             last_drawn_position = new_plane_position;
@@ -1377,20 +1395,20 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
 
     float delta = 3.141592 / 16; // 22.5 graus, em radianos.
 
-    if (key == GLFW_KEY_LEFT&& action == GLFW_PRESS)
+    if (key == GLFW_KEY_A&& action == GLFW_PRESS)
     {
         g_LeftPressed = true;
     }
-    if (key == GLFW_KEY_LEFT && action == GLFW_RELEASE)
+    if (key == GLFW_KEY_A && action == GLFW_RELEASE)
     {
         g_LeftPressed = false;
     }
 
-    if (key == GLFW_KEY_RIGHT && action == GLFW_PRESS)
+    if (key == GLFW_KEY_D && action == GLFW_PRESS)
     {
         g_RightPressed = true;
     }
-    if (key == GLFW_KEY_RIGHT && action == GLFW_RELEASE)
+    if (key == GLFW_KEY_D && action == GLFW_RELEASE)
     {
         g_RightPressed = false;
     }
