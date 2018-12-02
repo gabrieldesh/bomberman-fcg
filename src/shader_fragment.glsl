@@ -13,6 +13,8 @@ in vec4 position_model;
 // Coordenadas de textura obtidas do arquivo OBJ (se existirem!)
 in vec2 texcoords;
 
+in vec3 interpolated_color;
+
 // Matrizes computadas no código C++ e enviadas para a GPU
 uniform mat4 model;
 uniform mat4 view;
@@ -68,19 +70,19 @@ void main()
     float U = 0.0;
     float V = 0.0;
 
-    if ( object_id == 5 )
-    {
-        vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
+    // if ( object_id == 5 )
+    // {
+    //     vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
 
-        vec4 vec_p = (position_model - bbox_center) / length(position_model - bbox_center);
+    //     vec4 vec_p = (position_model - bbox_center) / length(position_model - bbox_center);
 
-        float theta = atan(vec_p.x, vec_p.z);
-        float phi = asin(vec_p.y);
+    //     float theta = atan(vec_p.x, vec_p.z);
+    //     float phi = asin(vec_p.y);
 
-        U = (theta + M_PI) / (2 * M_PI);
-        V = (phi + M_PI_2) / M_PI;
-    }
-    else if ( object_id == COW || object_id == CACTUS )
+    //     U = (theta + M_PI) / (2 * M_PI);
+    //     V = (phi + M_PI_2) / M_PI;
+    // }
+    if ( object_id == COW)
     {
         float minx = bbox_min.x;
         float maxx = bbox_max.x;
@@ -93,25 +95,41 @@ void main()
 
         U = (position_model.x - minx) / (maxx - minx);
         V = (position_model.y - miny) / (maxy - miny);
+
+        // Obtemos a refletância difusa a partir da leitura da imagem TextureImage0
+        vec3 Kd0 = texture(TextureImage0, vec2(U,V)).rgb;
+        vec3 Kd1 = texture(TextureImage1, vec2(U,V)).rgb;
+
+        // Equação de Iluminação
+        float lambert = max(0,dot(n,l));
+
+        color = Kd0 * (lambert + 0.01) + Kd1 * (1 - lambert + 0.01);
+
+        // Cor final com correção gamma, considerando monitor sRGB.
+        // Veja https://en.wikipedia.org/w/index.php?title=Gamma_correction&oldid=751281772#Windows.2C_Mac.2C_sRGB_and_TV.2Fvideo_standard_gammas
+        color = pow(color, vec3(1.0,1.0,1.0)/2.2);
     }
     else if ( object_id == PLANE )
     {
         // Coordenadas de textura do plano, obtidas do arquivo OBJ.
         U = texcoords.x;
         V = texcoords.y;
+
+        // Obtemos a refletância difusa a partir da leitura da imagem TextureImage0
+        vec3 Kd0 = texture(TextureImage0, vec2(U,V)).rgb;
+        vec3 Kd1 = texture(TextureImage1, vec2(U,V)).rgb;
+
+        // Equação de Iluminação
+        float lambert = max(0,dot(n,l));
+
+        color = Kd0 * (lambert + 0.01) + Kd1 * (1 - lambert + 0.01);
+
+        // Cor final com correção gamma, considerando monitor sRGB.
+        // Veja https://en.wikipedia.org/w/index.php?title=Gamma_correction&oldid=751281772#Windows.2C_Mac.2C_sRGB_and_TV.2Fvideo_standard_gammas
+        color = pow(color, vec3(1.0,1.0,1.0)/2.2);
     }
-
-    // Obtemos a refletância difusa a partir da leitura da imagem TextureImage0
-    vec3 Kd0 = texture(TextureImage0, vec2(U,V)).rgb;
-    vec3 Kd1 = texture(TextureImage1, vec2(U,V)).rgb;
-
-    // Equação de Iluminação
-    float lambert = max(0,dot(n,l));
-
-    color = Kd0 * (lambert + 0.01) + Kd1 * (1 - lambert + 0.01);
-
-    // Cor final com correção gamma, considerando monitor sRGB.
-    // Veja https://en.wikipedia.org/w/index.php?title=Gamma_correction&oldid=751281772#Windows.2C_Mac.2C_sRGB_and_TV.2Fvideo_standard_gammas
-    color = pow(color, vec3(1.0,1.0,1.0)/2.2);
+    else if (object_id == CACTUS ) {
+        // Modelo de interpolação de Gourad
+        color = interpolated_color;
+    }
 } 
-
