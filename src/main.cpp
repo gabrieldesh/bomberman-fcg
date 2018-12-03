@@ -3,23 +3,15 @@
 //       Departamento de Informática Aplicada
 //
 //    INF01047 Fundamentos de Computação Gráfica
-//               Prof. Eduardo Gastal
+//               Gabriel Haggstrom
 //
-//                   LABORATÓRIO 5
+//          TRABALHO FINAL DA DISCIPLINA
 //
 
-// Arquivos "headers" padrões de C podem ser incluídos em um
-// programa C++, sendo necessário somente adicionar o caractere
-// "c" antes de seu nome, e remover o sufixo ".h". Exemplo:
-//    #include <stdio.h> // Em C
-//  vira
-//    #include <cstdio> // Em C++
-//
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 
-// Headers abaixo são específicos de C++
 #include <iostream>
 #include <map>
 #include <stack>
@@ -98,13 +90,7 @@ struct ObjModel
     }
 };
 
-
-// Declaração de funções utilizadas para pilha de matrizes de modelagem.
-void PushMatrix(glm::mat4 M);
-void PopMatrix(glm::mat4& M);
-
-void DrawBBox(glm::vec4 bbox_min, glm::vec4 bbox_max);
-
+// Testes de intersecção
 bool BoxIntersectsBox(glm::vec4 bbox_min_a, glm::vec4 bbox_max_a, glm::vec4 bbox_min_b, glm::vec4 bbox_max_b);
 bool PlaneIntersectsBox(glm::vec4 plane_point, glm::vec4 plane_normal, glm::vec4 bbox_min, glm::vec4 bbox_max);
 
@@ -161,6 +147,8 @@ struct SceneObject
     glm::vec4    bbox_max;
 };
 
+// Guarda informações de um movimento de objeto definido por uma curva de Bezier
+// cúbica.
 struct CubicBezierMotion {
     glm::vec4 control_points[4];
     float initial_time;
@@ -174,7 +162,7 @@ struct ObjectInstance
     int id;
     std::string name; // Nome do objeto na g_VirtualScene
     glm::mat4 model; // Matriz de transformação para esta instância do modelo
-    CubicBezierMotion* motion;
+    CubicBezierMotion* motion; // Se != NULL, o movimento do objeto.
 
     ObjectInstance() {
         motion = NULL;
@@ -192,16 +180,8 @@ struct ObjectInstance
 // estes são acessados.
 std::map<std::string, SceneObject> g_VirtualScene;
 
-// Pilha que guardará as matrizes de modelagem.
-std::stack<glm::mat4>  g_MatrixStack;
-
 // Razão de proporção da janela (largura/altura). Veja função FramebufferSizeCallback().
 float g_ScreenRatio = 1.0f;
-
-// Ângulos de Euler que controlam a rotação de um dos cubos da cena virtual
-float g_AngleX = 0.0f;
-float g_AngleY = 0.0f;
-float g_AngleZ = 0.0f;
 
 // "g_LeftMouseButtonPressed = true" se o usuário está com o botão esquerdo do mouse
 // pressionado no momento atual. Veja função MouseButtonCallback().
@@ -219,18 +199,7 @@ bool g_SpacePressed = false;
 // renderização.
 float g_CameraTheta = -PI / 2.0f; // Ângulo no plano ZX em relação ao eixo Z
 float g_CameraPhi = PI / 8.0f;   // Ângulo em relação ao eixo Y
-float g_CameraDistance = 3.5f; // Distância da câmera para a origem
-
-// Variáveis que controlam rotação do antebraço
-float g_ForearmAngleZ = 0.0f;
-float g_ForearmAngleX = 0.0f;
-
-// Variáveis que controlam translação do torso
-float g_TorsoPositionX = 0.0f;
-float g_TorsoPositionY = 0.0f;
-
-// Variável que controla o tipo de projeção utilizada: perspectiva ou ortográfica.
-bool g_UsePerspectiveProjection = true;
+float g_CameraDistance = 3.5f; // Distância da câmera para a origem (look-at)
 
 bool g_UseLookAtCamera = true;
 
@@ -252,7 +221,8 @@ GLint bbox_max_uniform;
 // Gerador de números pseudoaleatórios
 std::default_random_engine generator;
 
-float random(float, float);
+// Gera um número aleatório entre a e b.
+float random(float a, float b);
 
 // Número de texturas carregadas pela função LoadTextureImage()
 GLuint g_NumLoadedTextures = 0;
@@ -286,7 +256,7 @@ int main(int argc, char* argv[])
     // Criamos uma janela do sistema operacional, com 800 colunas e 600 linhas
     // de pixels, e com título "INF01047 ...".
     GLFWwindow* window;
-    window = glfwCreateWindow(800, 600, "INF01047 - 228552 - Gabriel de Souza Haggstrom", NULL, NULL);
+    window = glfwCreateWindow(800, 600, "MooRun", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -397,6 +367,7 @@ int main(int argc, char* argv[])
     cow->name = "cow";
     objectInstances.push_back(cow);
 
+    // Define a posição e velocidade iniciais da vaca.
     glm::vec4 cow_position  = glm::vec4(
             0.0f,
             0.6f,
@@ -409,6 +380,8 @@ int main(int argc, char* argv[])
             0.0f,
             0.0f);
     
+    // O <distance_to_next_hole>-ésimo plano não será desenhado, deixando um 
+    // buraco
     int distance_to_next_hole = random(MIN_DISTANCE_BETWEEN_HOLES,
                                        MAX_DISTANCE_BETWEEN_HOLES + 1);
 
@@ -419,6 +392,8 @@ int main(int argc, char* argv[])
     while (!glfwWindowShouldClose(window))
     {
         // Aqui executamos as operações de renderização
+
+        // Calcula a diferença de tempo entre as iterações.
         float new_time = glfwGetTime();
         float delta_time = new_time - time;
         time = new_time;
@@ -429,7 +404,7 @@ int main(int argc, char* argv[])
         // Conversaremos sobre sistemas de cores nas aulas de Modelos de Iluminação.
         //
         //           R     G     B     A
-        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+        glClearColor(0.6f, 0.8f, 1.0f, 1.0f);
 
         // "Pintamos" todos os pixels do framebuffer com a cor definida acima,
         // e também resetamos todos os pixels do Z-buffer (depth buffer).
@@ -438,8 +413,10 @@ int main(int argc, char* argv[])
         // Pedimos para a GPU utilizar o programa de GPU criado acima (contendo
         // os shaders de vértice e fragmentos).
         glUseProgram(program_id);
+
+        // Atualiza posições de objetos e testa colisões
         
-        // Se necessário, cria uma nova instância de chão para entrar na cena
+        // Se necessário, cria novas instâncias de objetos para entrar na cena
         float distance_from_cow = norm(last_drawn_position - cow_position);
         if (distance_from_cow <= farplane_distance - PLANE_LENGTH / 2.0) {
             glm::vec4 new_plane_position = glm::vec4(
@@ -454,6 +431,7 @@ int main(int argc, char* argv[])
             }
             else
             {
+                // Cria um novo plano de chão.
                 ObjectInstance *new_plane = new ObjectInstance;
                 new_plane->id = PLANE;
                 new_plane->name = "plane";
@@ -467,8 +445,10 @@ int main(int argc, char* argv[])
                         1.0f,
                         TRACK_WIDTH/2.0f);
                 
+                // Insere na lista de instâncias
                 objectInstances.push_back(new_plane);
 
+                // Insere um cacto aleatoriamente
                 if (random(0.0, 1.0) <= CACTUS_RATE) {
                     glm::vec4 random_displacement = glm::vec4(random(-1.0,1.0),
                                                             0.0f,
@@ -483,10 +463,12 @@ int main(int argc, char* argv[])
                     cactus->model = Matrix_Translate(random_position.x,
                                                      random_position.y,
                                                      random_position.z);
+                    // Insere na lista de instâncias
                     objectInstances.push_back(cactus);
                 }
             }
 
+            // Cria uma águia aleatoriamente
             if (random(0.0, 1.0) <= EAGLE_RATE) {
                 glm::vec4 initial_position = new_plane_position + glm::vec4(
                     0.0,
@@ -498,14 +480,20 @@ int main(int argc, char* argv[])
                 eagle->id = EAGLE;
                 eagle->name = "eagle";
 
+                // Cria uma definição de movimento por curva de Bezier
                 CubicBezierMotion *motion = new CubicBezierMotion;
 
+                // Gera pontos de controle intermediários aleatoriamente.
                 motion->control_points[0] = initial_position;
                 motion->control_points[1] = initial_position + glm::vec4(-1.0, -1.0, random(-2.0,2.0), 0.0);
                 motion->control_points[2] = initial_position + glm::vec4(-2.0, -2.0, random(-2.0,2.0), 0.0);
                 motion->control_points[3] = cow_position;
 
+                // Instante inicial do movimento
                 motion->initial_time = time;
+
+                // Escala e rotaciona o modelo. A translação é feita após o 
+                // cálculo da curva a cada instante de tempo.
                 motion->initial_model_matrix = Matrix_Rotate_Y(
                     -PI / 2.0
                 ) * Matrix_Scale(
@@ -519,10 +507,15 @@ int main(int argc, char* argv[])
                 objectInstances.push_back(eagle);
             }
 
+            // Guarda a posição do último plano desenhado, para poder calcular 
+            // a posição do próximo plano posteriormente.
             last_drawn_position = new_plane_position;
+
             distance_to_next_hole--;
         }
 
+        // Calcula a posição de cada objeto que se movimenta por uma curva 
+        // de Bezier
         std::list<ObjectInstance*>::iterator iter = objectInstances.begin();
         while (iter != objectInstances.end()) {
             CubicBezierMotion *motion = (**iter).motion;
@@ -546,6 +539,8 @@ int main(int argc, char* argv[])
                         + 3.0f * (float)pow(t, 2) * (1.0f - t) * p3
                         + (float)pow(t, 3)                     * p4;
             
+            // Cria uma matriz que translada para a posição calculada e combina 
+            // com a matriz inicial do modelo definida anteriormente.
             (**iter).model = Matrix_Translate(
                 p.x, p.y, p.z
             ) * motion->initial_model_matrix;
@@ -554,9 +549,12 @@ int main(int argc, char* argv[])
         }
 
         // Testes de intersecção
+        // Calcula a bounding box da vaca em coordenadas globais
         glm::vec4 cow_bbox_min = cow->model * g_VirtualScene["cow"].bbox_min;
         glm::vec4 cow_bbox_max = cow->model * g_VirtualScene["cow"].bbox_max;
 
+        // Calcula vetores normais e pontos para os planos que delimitam as 
+        // laterais da pista
         glm::vec4 left_plane_point = glm::vec4(cow_position.x,
                                                0.0f,
                                                -TRACK_WIDTH/2.0f,
@@ -575,12 +573,16 @@ int main(int argc, char* argv[])
                                                  -TRACK_WIDTH/2.0f,
                                                  0.0f);
 
+        // Testa se a vaca intersecta os limites laterais da pista
         bool intersectedWithLeftBound = PlaneIntersectsBox(left_plane_point, left_plane_normal, cow_bbox_min, cow_bbox_max);
         bool intersectedWithRightBound = PlaneIntersectsBox(right_plane_point, right_plane_normal, cow_bbox_min, cow_bbox_max);
 
+        // Bounding box do plano em coordenadas do modelo.
         glm::vec4 plane_local_bbox_min = g_VirtualScene["plane"].bbox_min;
         glm::vec4 plane_local_bbox_max = g_VirtualScene["plane"].bbox_max;
 
+        // Calcula uma box mais baixa da vaca, para não ocorrer uma intersecção 
+        // com a borda do buraco após a vaca ter caído
         glm::vec4 cow_feet_bbox_min = cow_bbox_min;
         glm::vec4 cow_feet_bbox_max = glm::vec4(
             cow_bbox_max.x,
@@ -588,12 +590,14 @@ int main(int argc, char* argv[])
             cow_bbox_max.z,
             1.0f
         );
-
+        
+        // Bounding box do plano e da águia em coordenadas dos modelos.
         glm::vec4 cactus_local_bbox_min = g_VirtualScene["cactus"].bbox_min;
         glm::vec4 cactus_local_bbox_max = g_VirtualScene["cactus"].bbox_max;
         glm::vec4 eagle_local_bbox_min = g_VirtualScene["eagle"].bbox_min;
         glm::vec4 eagle_local_bbox_max = g_VirtualScene["eagle"].bbox_max;
 
+        // Testa intersecção da vaca com os objetos
         bool intersectedWithGround = false;
         std::list<ObjectInstance*>::iterator instance = objectInstances.begin();
         while (instance != objectInstances.end()) {
@@ -629,11 +633,14 @@ int main(int argc, char* argv[])
             }
             instance++;
         }
-
+        
+        // Se game over, para o jogo
         if (game_over) {
             cow_velocity.x = 0.0f;
         }
 
+        // Calcula a velocidade da vaca de acordo com as colisões ocorridas e 
+        // teclas pressionadas.
         if (intersectedWithGround && g_SpacePressed && !game_over) {
             cow_velocity.y = JUMP_INITIAL_VELOCITY;
         }
@@ -664,14 +671,21 @@ int main(int argc, char* argv[])
             cow_velocity.z = 0.0f;
         }
         
+        // Atualiza a posição da vaca.
         cow_position = cow_position + cow_velocity * delta_time;
 
         cow->model = Matrix_Translate(cow_position.x, cow_position.y, cow_position.z);
         
+
+
+        // Cálculos de câmera
+
         glm::vec4 camera_position_c;
         glm::vec4 camera_view_vector;
         glm::vec4 camera_up_vector;
         if (g_UseLookAtCamera) {
+            // Câmera look-at
+
             glm::vec4 camera_lookat_l = cow_position; // Ponto "l", para onde a câmera look-at estará sempre olhando
 
             // Computamos a posição da câmera utilizando coordenadas esféricas.  As
@@ -689,6 +703,8 @@ int main(int argc, char* argv[])
             camera_view_vector = camera_lookat_l - camera_position_c; // Vetor "view", sentido para onde a câmera está virada
         }
         else {
+            // Câmera livre
+
             float r = g_CameraDistance;
             float y = r*sin(g_CameraPhi);
             float z = r*cos(g_CameraPhi)*cos(g_CameraTheta);
@@ -696,7 +712,7 @@ int main(int argc, char* argv[])
 
             // Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
             // Veja slides 172-182 do documento "Aula_08_Sistemas_de_Coordenadas.pdf".
-            camera_position_c  = cow_position + glm::vec4(1.0f,1.0f,0.0f,0.0f); // Ponto "c", centro da câmera
+            camera_position_c  = cow_position + glm::vec4(0.9f,0.7f,0.0f,0.0f); // Ponto "c", centro da câmera
             camera_view_vector = glm::vec4(x, y, z, 0.0f); // Vetor "view", sentido para onde a câmera está virada
         }
 
@@ -714,26 +730,9 @@ int main(int argc, char* argv[])
         float nearplane = -0.1f;  // Posição do "near plane"
         float farplane  = -farplane_distance; // Posição do "far plane"
 
-        if (g_UsePerspectiveProjection)
-        {
-            // Projeção Perspectiva.
-            // Para definição do field of view (FOV), veja slide 227 do documento "Aula_09_Projecoes.pdf".
-            float field_of_view = PI / 3.0f;
-            projection = Matrix_Perspective(field_of_view, g_ScreenRatio, nearplane, farplane);
-        }
-        else
-        {
-            // Projeção Ortográfica.
-            // Para definição dos valores l, r, b, t ("left", "right", "bottom", "top"),
-            // PARA PROJEÇÃO ORTOGRÁFICA veja slide 236 do documento "Aula_09_Projecoes.pdf".
-            // Para simular um "zoom" ortográfico, computamos o valor de "t"
-            // utilizando a variável g_CameraDistance.
-            float t = 1.5f*g_CameraDistance/2.5f;
-            float b = -t;
-            float r = t*g_ScreenRatio;
-            float l = -r;
-            projection = Matrix_Orthographic(l, r, b, t, nearplane, farplane);
-        }
+        // Projeção Perspectiva.
+        float field_of_view = PI / 3.0f;
+        projection = Matrix_Perspective(field_of_view, g_ScreenRatio, nearplane, farplane);
 
         // Enviamos as matrizes "view" e "projection" para a placa de vídeo
         // (GPU). Veja o arquivo "shader_vertex.glsl", onde estas são
@@ -763,20 +762,6 @@ int main(int argc, char* argv[])
 
             it++;
         }
-
-        // Pegamos um vértice com coordenadas de modelo (0.5, 0.5, 0.5, 1) e o
-        // passamos por todos os sistemas de coordenadas armazenados nas
-        // matrizes the_model, the_view, e the_projection; e escrevemos na tela
-        // as matrizes e pontos resultantes dessas transformações.
-        //glm::vec4 p_model(0.5f, 0.5f, 0.5f, 1.0f);
-        //TextRendering_ShowModelViewProjection(window, projection, view, model, p_model);
-
-        // Imprimimos na tela os ângulos de Euler que controlam a rotação do
-        // terceiro cubo.
-        TextRendering_ShowEulerAngles(window);
-
-        // Imprimimos na informação sobre a matriz de projeção sendo utilizada.
-        TextRendering_ShowProjection(window);
 
         // Imprimimos na tela informação sobre o número de quadros renderizados
         // por segundo (frames per second).
@@ -915,37 +900,6 @@ void DrawVirtualObject(std::string object_name)
     glBindVertexArray(0);
 }
 
-void DrawBBox(glm::vec4 bbox_min, glm::vec4 bbox_max)
-{
-    if (g_ShowInfoText) {
-        glm::mat4 model1 = Matrix_Translate(
-            bbox_max.x - (bbox_max.x - bbox_min.x) / 2.0,
-            bbox_max.y,
-            bbox_max.z - (bbox_max.z - bbox_min.z) / 2.0
-        ) * Matrix_Scale(
-            (bbox_max.x - bbox_min.x) / 2.0,
-            1.0,
-            (bbox_max.z - bbox_min.z) / 2.0
-        );
-        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model1));
-        glUniform1i(object_id_uniform, PLANE);
-        DrawVirtualObject("plane");
-
-        glm::mat4 model2 = Matrix_Translate(
-            bbox_min.x + (bbox_max.x - bbox_min.x) / 2.0,
-            bbox_min.y,
-            bbox_min.z + (bbox_max.z - bbox_min.z) / 2.0
-        ) * Matrix_Scale(
-            (bbox_max.x - bbox_min.x) / 2.0,
-            1.0,
-            (bbox_max.z - bbox_min.z) / 2.0
-        );
-        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model2));
-        glUniform1i(object_id_uniform, PLANE);
-        DrawVirtualObject("plane");
-    }
-}
-
 // Função que carrega os shaders de vértices e de fragmentos que serão
 // utilizados para renderização. Veja slides 217-219 do documento "Aula_03_Rendering_Pipeline_Grafico.pdf".
 //
@@ -995,26 +949,6 @@ void LoadShadersFromFiles()
     glUniform1i(glGetUniformLocation(program_id, "TextureImage1"), 1);
     glUniform1i(glGetUniformLocation(program_id, "TextureImage2"), 2);
     glUseProgram(0);
-}
-
-// Função que pega a matriz M e guarda a mesma no topo da pilha
-void PushMatrix(glm::mat4 M)
-{
-    g_MatrixStack.push(M);
-}
-
-// Função que remove a matriz atualmente no topo da pilha e armazena a mesma na variável M
-void PopMatrix(glm::mat4& M)
-{
-    if ( g_MatrixStack.empty() )
-    {
-        M = Matrix_Identity();
-    }
-    else
-    {
-        M = g_MatrixStack.top();
-        g_MatrixStack.pop();
-    }
 }
 
 // Função que computa as normais de um ObjModel, caso elas não tenham sido
@@ -1492,38 +1426,6 @@ void CursorPosCallback(GLFWwindow* window, double xpos, double ypos)
         g_LastCursorPosX = xpos;
         g_LastCursorPosY = ypos;
     }
-
-    if (g_RightMouseButtonPressed)
-    {
-        // Deslocamento do cursor do mouse em x e y de coordenadas de tela!
-        float dx = xpos - g_LastCursorPosX;
-        float dy = ypos - g_LastCursorPosY;
-    
-        // Atualizamos parâmetros da antebraço com os deslocamentos
-        g_ForearmAngleZ -= 0.01f*dx;
-        g_ForearmAngleX += 0.01f*dy;
-    
-        // Atualizamos as variáveis globais para armazenar a posição atual do
-        // cursor como sendo a última posição conhecida do cursor.
-        g_LastCursorPosX = xpos;
-        g_LastCursorPosY = ypos;
-    }
-
-    if (g_MiddleMouseButtonPressed)
-    {
-        // Deslocamento do cursor do mouse em x e y de coordenadas de tela!
-        float dx = xpos - g_LastCursorPosX;
-        float dy = ypos - g_LastCursorPosY;
-    
-        // Atualizamos parâmetros da antebraço com os deslocamentos
-        g_TorsoPositionX += 0.01f*dx;
-        g_TorsoPositionY -= 0.01f*dy;
-    
-        // Atualizamos as variáveis globais para armazenar a posição atual do
-        // cursor como sendo a última posição conhecida do cursor.
-        g_LastCursorPosX = xpos;
-        g_LastCursorPosY = ypos;
-    }
 }
 
 // Função callback chamada sempre que o usuário movimenta a "rodinha" do mouse.
@@ -1551,16 +1453,6 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GL_TRUE);
 
-    // O código abaixo implementa a seguinte lógica:
-    //   Se apertar tecla X       então g_AngleX += delta;
-    //   Se apertar tecla shift+X então g_AngleX -= delta;
-    //   Se apertar tecla Y       então g_AngleY += delta;
-    //   Se apertar tecla shift+Y então g_AngleY -= delta;
-    //   Se apertar tecla Z       então g_AngleZ += delta;
-    //   Se apertar tecla shift+Z então g_AngleZ -= delta;
-
-    float delta = 3.141592 / 16; // 22.5 graus, em radianos.
-
     if ((key == GLFW_KEY_A || key == GLFW_KEY_LEFT) && action == GLFW_PRESS)
     {
         g_LeftPressed = true;
@@ -1586,44 +1478,6 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
     if (key == GLFW_KEY_SPACE && action == GLFW_RELEASE)
     {
         g_SpacePressed = false;
-    }
-
-    if (key == GLFW_KEY_X && action == GLFW_PRESS)
-    {
-        g_AngleX += (mod & GLFW_MOD_SHIFT) ? -delta : delta;
-    }
-
-    if (key == GLFW_KEY_Y && action == GLFW_PRESS)
-    {
-        g_AngleY += (mod & GLFW_MOD_SHIFT) ? -delta : delta;
-    }
-    if (key == GLFW_KEY_Z && action == GLFW_PRESS)
-    {
-        g_AngleZ += (mod & GLFW_MOD_SHIFT) ? -delta : delta;
-    }
-
-    // Se o usuário apertar a tecla espaço, resetamos os ângulos de Euler para zero.
-    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
-    {
-        g_AngleX = 0.0f;
-        g_AngleY = 0.0f;
-        g_AngleZ = 0.0f;
-        g_ForearmAngleX = 0.0f;
-        g_ForearmAngleZ = 0.0f;
-        g_TorsoPositionX = 0.0f;
-        g_TorsoPositionY = 0.0f;
-    }
-
-    // Se o usuário apertar a tecla P, utilizamos projeção perspectiva.
-    if (key == GLFW_KEY_P && action == GLFW_PRESS)
-    {
-        g_UsePerspectiveProjection = true;
-    }
-
-    // Se o usuário apertar a tecla O, utilizamos projeção ortográfica.
-    if (key == GLFW_KEY_O && action == GLFW_PRESS)
-    {
-        g_UsePerspectiveProjection = false;
     }
 
     // Se o usuário apertar a tecla F, alterna entre câmera look-at e livre.
@@ -1665,66 +1519,6 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
 void ErrorCallback(int error, const char* description)
 {
     fprintf(stderr, "ERROR: GLFW: %s\n", description);
-}
-
-// Esta função recebe um vértice com coordenadas de modelo p_model e passa o
-// mesmo por todos os sistemas de coordenadas armazenados nas matrizes model,
-// view, e projection; e escreve na tela as matrizes e pontos resultantes
-// dessas transformações.
-void TextRendering_ShowModelViewProjection(
-    GLFWwindow* window,
-    glm::mat4 projection,
-    glm::mat4 view,
-    glm::mat4 model,
-    glm::vec4 p_model
-)
-{
-    if ( !g_ShowInfoText )
-        return;
-
-    glm::vec4 p_world = model*p_model;
-    glm::vec4 p_camera = view*p_world;
-
-    float pad = TextRendering_LineHeight(window);
-
-    TextRendering_PrintString(window, " Model matrix             Model     World", -1.0f, 1.0f-pad, 1.0f);
-    TextRendering_PrintMatrixVectorProduct(window, model, p_model, -1.0f, 1.0f-2*pad, 1.0f);
-
-    TextRendering_PrintString(window, " View matrix              World     Camera", -1.0f, 1.0f-7*pad, 1.0f);
-    TextRendering_PrintMatrixVectorProduct(window, view, p_world, -1.0f, 1.0f-8*pad, 1.0f);
-
-    TextRendering_PrintString(window, " Projection matrix        Camera                   NDC", -1.0f, 1.0f-13*pad, 1.0f);
-    TextRendering_PrintMatrixVectorProductDivW(window, projection, p_camera, -1.0f, 1.0f-14*pad, 1.0f);
-}
-
-// Escrevemos na tela os ângulos de Euler definidos nas variáveis globais
-// g_AngleX, g_AngleY, e g_AngleZ.
-void TextRendering_ShowEulerAngles(GLFWwindow* window)
-{
-    if ( !g_ShowInfoText )
-        return;
-
-    float pad = TextRendering_LineHeight(window);
-
-    char buffer[80];
-    snprintf(buffer, 80, "Euler Angles rotation matrix = Z(%.2f)*Y(%.2f)*X(%.2f)\n", g_AngleZ, g_AngleY, g_AngleX);
-
-    TextRendering_PrintString(window, buffer, -1.0f+pad/10, -1.0f+2*pad/10, 1.0f);
-}
-
-// Escrevemos na tela qual matriz de projeção está sendo utilizada.
-void TextRendering_ShowProjection(GLFWwindow* window)
-{
-    if ( !g_ShowInfoText )
-        return;
-
-    float lineheight = TextRendering_LineHeight(window);
-    float charwidth = TextRendering_CharWidth(window);
-
-    if ( g_UsePerspectiveProjection )
-        TextRendering_PrintString(window, "Perspective", 1.0f-13*charwidth, -1.0f+2*lineheight/10, 1.0f);
-    else
-        TextRendering_PrintString(window, "Orthographic", 1.0f-13*charwidth, -1.0f+2*lineheight/10, 1.0f);
 }
 
 // Escrevemos na tela o número de quadros renderizados por segundo (frames per
