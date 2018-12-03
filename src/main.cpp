@@ -55,14 +55,14 @@
 #define PI 3.141592
 #define ORIGIN glm::vec4(0.0f,0.0f,0.0f,1.0f)
 
-#define GRAVITY_ACCELERATION 9.8
-#define JUMP_INITIAL_VELOCITY 4.0f
+#define GRAVITY_ACCELERATION 20.0
+#define JUMP_INITIAL_VELOCITY 8.0f
 #define TRACK_WIDTH 4.0f
 #define MIN_DISTANCE_BETWEEN_HOLES 3
 #define MAX_DISTANCE_BETWEEN_HOLES 5
 #define CACTUS_RATE 0.8f
-#define EAGLE_RATE 0.1f
-#define PLANE_LENGTH 3.0f
+#define EAGLE_RATE 0.05f
+#define PLANE_LENGTH 3.2f
 
 #define COW_FEET_BBOX_HEIGHT 0.2f
 
@@ -368,7 +368,7 @@ int main(int argc, char* argv[])
     // Guarda instâncias de modelos
     std::list<ObjectInstance*> objectInstances;
 
-    float farplane_distance = 10.0f;
+    float farplane_distance = 20.0f;
     
     // Adiciona as primeiras instâncias de chão. As instâncias vão sendo 
     // apagadas à medida que se afastam da cena.
@@ -399,12 +399,12 @@ int main(int argc, char* argv[])
 
     glm::vec4 cow_position  = glm::vec4(
             0.0f,
-            1.0f,
+            0.6f,
             0.0f,
             1.0f);
 
     glm::vec4 cow_velocity = glm::vec4(
-            5.0f,
+            8.0f,
             0.0f,
             0.0f,
             0.0f);
@@ -485,38 +485,38 @@ int main(int argc, char* argv[])
                                                      random_position.z);
                     objectInstances.push_back(cactus);
                 }
+            }
 
-                if (random(0.0, 1.0) <= EAGLE_RATE) {
-                    glm::vec4 initial_position = new_plane_position + glm::vec4(
-                        0.0,
-                        2.0,
-                        0.0,
-                        0.0);
+            if (random(0.0, 1.0) <= EAGLE_RATE) {
+                glm::vec4 initial_position = new_plane_position + glm::vec4(
+                    0.0,
+                    2.0,
+                    0.0,
+                    0.0);
 
-                    ObjectInstance *eagle = new ObjectInstance;
-                    eagle->id = EAGLE;
-                    eagle->name = "eagle";
+                ObjectInstance *eagle = new ObjectInstance;
+                eagle->id = EAGLE;
+                eagle->name = "eagle";
 
-                    CubicBezierMotion *motion = new CubicBezierMotion;
+                CubicBezierMotion *motion = new CubicBezierMotion;
 
-                    motion->control_points[0] = initial_position;
-                    motion->control_points[1] = initial_position + glm::vec4(-1.0, 0.0, 0.0, 0.0);
-                    motion->control_points[2] = initial_position + glm::vec4(-2.0, 1.0, 0.0, 0.0);
-                    motion->control_points[3] = cow_position;//initial_position + glm::vec4(-3.0, 0.0, 0.0, 0.0);
+                motion->control_points[0] = initial_position;
+                motion->control_points[1] = initial_position + glm::vec4(-1.0, -1.0, random(-2.0,2.0), 0.0);
+                motion->control_points[2] = initial_position + glm::vec4(-2.0, -2.0, random(-2.0,2.0), 0.0);
+                motion->control_points[3] = cow_position;
 
-                    motion->initial_time = time;
-                    motion->initial_model_matrix = Matrix_Rotate_Y(
-                        -PI / 2.0
-                    ) * Matrix_Scale(
-                        0.02,
-                        0.02,
-                        0.02
-                    );
+                motion->initial_time = time;
+                motion->initial_model_matrix = Matrix_Rotate_Y(
+                    -PI / 2.0
+                ) * Matrix_Scale(
+                    0.02,
+                    0.02,
+                    0.02
+                );
 
-                    eagle->motion = motion;
+                eagle->motion = motion;
 
-                    objectInstances.push_back(eagle);
-                }
+                objectInstances.push_back(eagle);
             }
 
             last_drawn_position = new_plane_position;
@@ -531,7 +531,7 @@ int main(int argc, char* argv[])
                 continue;
             }
 
-            float animation_velocity = 1.0f;
+            float animation_velocity = 0.3f;
             float t = (time - motion->initial_time) * animation_velocity;
 
             // Pontos de controle da curva Bézier da animação
@@ -591,6 +591,8 @@ int main(int argc, char* argv[])
 
         glm::vec4 cactus_local_bbox_min = g_VirtualScene["cactus"].bbox_min;
         glm::vec4 cactus_local_bbox_max = g_VirtualScene["cactus"].bbox_max;
+        glm::vec4 eagle_local_bbox_min = g_VirtualScene["eagle"].bbox_min;
+        glm::vec4 eagle_local_bbox_max = g_VirtualScene["eagle"].bbox_max;
 
         bool intersectedWithGround = false;
         std::list<ObjectInstance*>::iterator instance = objectInstances.begin();
@@ -615,43 +617,51 @@ int main(int argc, char* argv[])
                     game_over = true;
                 }
             }
+            else if ((**instance).id == EAGLE) {
+                glm::vec4 eagle_bbox_min = (**instance).model 
+                                         * eagle_local_bbox_min;
+                glm::vec4 eagle_bbox_max = (**instance).model 
+                                         * eagle_local_bbox_max;
+                if (BoxIntersectsBox(cow_bbox_min, cow_bbox_max,
+                                     eagle_bbox_min, eagle_bbox_max)) {
+                    game_over = true;
+                }
+            }
             instance++;
         }
 
         if (game_over) {
             cow_velocity.x = 0.0f;
-            cow_velocity.z = 0.0f;
+        }
+
+        if (intersectedWithGround && g_SpacePressed && !game_over) {
+            cow_velocity.y = JUMP_INITIAL_VELOCITY;
+        }
+        else if (intersectedWithGround) {
+            cow_velocity.y = 0.0f;
+            cow_position.y = 0.6f;
         }
         else {
-            if (intersectedWithGround && g_SpacePressed) {
-                cow_velocity.y = JUMP_INITIAL_VELOCITY;
-            }
-            else if (intersectedWithGround) {
-                cow_velocity.y = 0.0f;
-                cow_position.y = 0.6f;
-            }
-            else {
-                cow_velocity.y += -GRAVITY_ACCELERATION * delta_time;
-            }
+            cow_velocity.y += -GRAVITY_ACCELERATION * delta_time;
+        }
 
-            if (g_LeftPressed == g_RightPressed) {
-                cow_velocity.z = 0.0f;
-            }
-            else if (g_LeftPressed && intersectedWithGround && !intersectedWithLeftBound) {
-                cow_velocity.z = -3.0f;
-            }
-            else if (g_LeftPressed && !intersectedWithGround && !intersectedWithLeftBound) {
-                cow_velocity.z = -1.5f;
-            }
-            else if (g_RightPressed && intersectedWithGround && !intersectedWithRightBound) {
-                cow_velocity.z = 3.0f;
-            }
-            else if (g_RightPressed && !intersectedWithGround && !intersectedWithRightBound) {
-                cow_velocity.z = 1.5f;
-            }
-            else {
-                cow_velocity.z = 0.0f;
-            }
+        if (g_LeftPressed == g_RightPressed && !game_over) {
+            cow_velocity.z = 0.0f;
+        }
+        else if (g_LeftPressed && intersectedWithGround && !intersectedWithLeftBound && !game_over) {
+            cow_velocity.z = -3.0f;
+        }
+        else if (g_LeftPressed && !intersectedWithGround && !intersectedWithLeftBound && !game_over) {
+            cow_velocity.z = -1.5f;
+        }
+        else if (g_RightPressed && intersectedWithGround && !intersectedWithRightBound && !game_over) {
+            cow_velocity.z = 3.0f;
+        }
+        else if (g_RightPressed && !intersectedWithGround && !intersectedWithRightBound && !game_over) {
+            cow_velocity.z = 1.5f;
+        }
+        else {
+            cow_velocity.z = 0.0f;
         }
         
         cow_position = cow_position + cow_velocity * delta_time;
